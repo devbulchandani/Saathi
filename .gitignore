@@ -1,0 +1,13 @@
+.DS_Store
+.idea/
+.vscode/
+*.log
+.env
+.env.*
+!.env.example
+**/node_modules/
+apps/SaathiTV/build/
+apps/SaathiTV/dist/
+apps/SaathiTV/buildinfo.json
+apps/SaathiTV/generated/
+kepler-template*/
