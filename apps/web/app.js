@@ -4,7 +4,7 @@ function loadSessionId() {
   try { const saved = sessionStorage.getItem('saathi.chatSessionId'); if (saved) return saved; const id = newSessionId(); sessionStorage.setItem('saathi.chatSessionId', id); return id; }
   catch { return newSessionId(); }
 }
-const state = { view: 'home', interest: null, access: null, mode: null, guide: 'herb-pot', detail: 'stepwise', currentStep: 0, trace: [], preview: null, rpcId: 0, mcpInitialized: false, tvTimer: null, conversation: [], sessionId: loadSessionId(), historyLoaded: false };
+const state = { view: 'home', interest: null, access: null, mode: null, guide: 'herb-pot', detail: 'stepwise', detailTouched: false, currentStep: 0, trace: [], preview: null, rpcId: 0, mcpInitialized: false, tvTimer: null, conversation: [], sessionId: loadSessionId(), historyLoaded: false };
 const api = async (path, options = {}) => {
   const response = await fetch(path, { ...options, headers: { 'content-type': 'application/json', ...(options.headers || {}) } });
   const data = await response.json();
@@ -138,6 +138,10 @@ async function loadGroups() {
 }
 async function loadGuide() {
   try {
+    if (!state.detailTouched) {
+      const { preferences } = await api('/api/me');
+      state.detail = preferences.detail;
+    }
     const guide = await api(`/api/guidance?guide=${encodeURIComponent(state.guide)}&detail=${state.detail}`);
     state.currentStep = guide.currentStep; $('#guideTitle').textContent = guide.title; $('#guideNote').textContent = guide.note;
     $('#steps').innerHTML = guide.steps.map(step => `<li${state.detail === 'stepwise' ? ' class="current-step"' : ''}>${escapeHtml(step)}</li>`).join('');
@@ -148,7 +152,7 @@ async function loadGuide() {
   } catch (exception) { announce(exception.message, true); }
 }
 $('#guideSelect').addEventListener('change', event => { state.guide = event.target.value; loadGuide(); });
-document.querySelectorAll('.detail-choice').forEach(button => button.addEventListener('click', () => { state.detail = button.dataset.detail; loadGuide(); }));
+document.querySelectorAll('.detail-choice').forEach(button => button.addEventListener('click', () => { state.detail = button.dataset.detail; state.detailTouched = true; loadGuide(); }));
 $('#previousStep').addEventListener('click', async () => changeStep(-1)); $('#nextStep').addEventListener('click', async () => changeStep(1));
 async function changeStep(delta) {
   const count = { 'herb-pot': 4, 'masala-chai': 4, 'balcony-compost': 4 }[state.guide];
@@ -222,13 +226,13 @@ $('#savePrefs').addEventListener('click', async () => {
     textSize: $('#prefTextSize').value,
   };
   const button = $('#savePrefs'); button.disabled = true; $('#preferenceStatus').textContent = 'Saving your choices…';
-  try { const result = await api('/api/me/preferences', { method: 'PATCH', body: JSON.stringify(preferences) }); $('#preferenceStatus').textContent = result.message; loadTvState(); }
+  try { const result = await api('/api/me/preferences', { method: 'PATCH', body: JSON.stringify(preferences) }); state.detailTouched = false; $('#preferenceStatus').textContent = result.message; loadTvState(); }
   catch (exception) { $('#preferenceStatus').textContent = `Could not save your choices. ${exception.message}`; }
   finally { button.disabled = false; }
 });
 $('#clearPrefs').addEventListener('click', async () => {
   const button = $('#clearPrefs'); button.disabled = true;
-  try { const result = await api('/api/me/preferences', { method: 'DELETE' }); await loadPreferences(); $('#preferenceStatus').textContent = result.message; loadTvState(); }
+  try { const result = await api('/api/me/preferences', { method: 'DELETE' }); state.detailTouched = false; await loadPreferences(); $('#preferenceStatus').textContent = result.message; loadTvState(); }
   catch (exception) { announce(exception.message, true); }
   finally { button.disabled = false; }
 });
@@ -296,7 +300,7 @@ async function loadTvState() {
   try {
     const data = await api('/api/tv/state');
     $('#tv').dataset.textSize = data.user.preferences.textSize;
-    $('#tvPreferenceSummary').textContent = `A shared screen for the activities you chose · captions ${data.user.preferences.captions ? 'on' : 'off'}`;
+    $('#tvPreferenceSummary').textContent = `A shared screen for the activities you chose · caption preference ${data.user.preferences.captions ? 'on' : 'off'}`;
     $('#tvNextTitle').textContent = data.nextSession?.title || 'Choose a club to get started';
     $('#tvNextMeta').textContent = data.nextSession ? `${new Date(data.nextSession.startsAt).toLocaleString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' })} · ${data.nextSession.topic}` : 'Your next session will appear here after you join a club.';
     const target = $('#tvJoined');

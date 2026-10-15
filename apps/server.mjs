@@ -601,7 +601,8 @@ async function planOffline(message, history = []) {
   }
   if (asksGuidance) {
     const guideId = guideForPrompt(contextualText);
-    const detail = /\b(brief|quick|short|overview)\b/.test(lower) ? 'brief' : 'stepwise';
+    const explicitlyStepwise = /\b(step by step|one step at a time|slowly|repeat)\b/.test(lower);
+    const detail = /\b(brief|quick|short|overview)\b/.test(lower) ? 'brief' : explicitlyStepwise ? 'stepwise' : preferences.detail;
     const result = await runInternalTool('get_task_guidance', { guideId, detail }, calls);
     uiAction.view = 'guidance'; uiAction.highlightId = guideId;
     reply = `${result.title} is ready in ${detail} mode. You can repeat a step or change the detail.`;

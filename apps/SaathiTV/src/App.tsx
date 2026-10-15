@@ -152,7 +152,7 @@ export const App = () => {
         </View>
         <View style={styles.connection} accessibilityLiveRegion="polite">
           <View style={[styles.dot, connection === 'connected' ? styles.connected : connection === 'offline' ? styles.offline : styles.loading]} />
-          <Text style={styles.connectionText}>{connection === 'connected' ? `Synced with Saathi demo · captions ${tvState?.user.preferences.captions ? 'on' : 'off'}` : connection === 'offline' ? 'Showing sample activities' : 'Connecting…'}</Text>
+          <Text style={styles.connectionText}>{connection === 'connected' ? `Synced · caption preference ${tvState?.user.preferences.captions ? 'on' : 'off'}` : connection === 'offline' ? 'Showing sample activities' : 'Connecting…'}</Text>
         </View>
       </View>
 
