@@ -25,11 +25,13 @@ type Activity = {
   participation_modes: string[];
   joined: boolean;
   matchReasons?: string[];
+  joinedParticipationMode?: 'speak' | 'choose' | 'text' | 'observe' | null;
+  defaultParticipationMode?: 'speak' | 'choose' | 'text' | 'observe';
 };
 
-type Session = {id: string; title: string; topic: string; startsAt: string; recurrence: string; access: string[]};
+type Session = {id: string; title: string; topic: string; startsAt: string; recurrence: string; access: string[]; participationMode?: string | null};
 type TvState = {
-  user: {name: string; preferences: {interests: string[]; captions: boolean; textSize: 'large' | 'default'}};
+  user: {name: string; preferences: {interests: string[]; captions: boolean; textSize: 'large' | 'default'; participationMode?: string | null}};
   nextSession: {title: string; recurrence: string; startsAt: string} | null;
   joinedSessions: Session[];
   allActivities: Activity[];
@@ -96,7 +98,10 @@ export const App = () => {
     setBusyId(activity.id);
     try {
       const action = activity.joined ? 'leave' : 'join';
-      const response = await fetch(`${API_BASE_URL}/api/activities/${activity.id}/${action}`, {method: 'POST'});
+      const response = await fetch(`${API_BASE_URL}/api/activities/${activity.id}/${action}`, {
+        method: 'POST',
+        ...(activity.joined ? {} : {headers: {'content-type': 'application/json'}, body: JSON.stringify({participationMode: activity.defaultParticipationMode})}),
+      });
       if (!response.ok) throw new Error('Could not update membership');
       await refresh();
     } catch {
@@ -220,6 +225,7 @@ export const App = () => {
                   <Text style={[styles.activityDescription, largeText && {fontSize: 17, lineHeight: 24}]}>{activity.description}</Text>
                   {activity.matchReasons?.length ? <Text style={[styles.recommendationReason, largeText && {fontSize: 15, lineHeight: 21}]}>Why it may fit: {activity.matchReasons.join(' ')}</Text> : null}
                   <Text style={[styles.recurrence, largeText && {fontSize: 17}]}>{activity.recurrence}</Text>
+                  <Text style={styles.accessText}>{activity.joined ? `Your participation choice: ${activity.joinedParticipationMode ?? 'choose'}` : `Suggested participation: ${activity.defaultParticipationMode ?? 'choose'}`}</Text>
                   <View style={styles.accessList}>
                     {activity.access.slice(0, 2).map((access) => <Text key={access} style={[styles.accessText, largeText && {fontSize: 15, lineHeight: 21}]}>•  {access}</Text>)}
                   </View>
@@ -260,6 +266,7 @@ export const App = () => {
                   <Text style={[styles.activityDescription, largeText && {fontSize: 17, lineHeight: 24}]}>{session.topic}</Text>
                   <Text style={styles.recurrence}>{new Date(session.startsAt).toLocaleDateString('en-IN', {weekday: 'long', day: 'numeric', month: 'long'})}</Text>
                   <Text style={styles.accessText}>{session.recurrence}</Text>
+                  {session.participationMode ? <Text style={styles.accessText}>Participation choice: {session.participationMode}</Text> : null}
                   <Text style={styles.sessionNote}>Come as you are. You can listen, take part, or simply observe.</Text>
                 </View>
               ))}

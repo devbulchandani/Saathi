@@ -40,7 +40,7 @@ test('MCP initializes, acknowledges notifications, lists tools, and calls tools'
   assert.equal(listed.status, 200);
   assert.deepEqual(listed.data.result.tools.map(item => item.name), MCP_TOOLS.map(item => item.name));
   assert.equal(MCP_TOOLS.length, 8);
-  assert.deepEqual(MCP_TOOLS.find(item => item.name === 'join_activity').inputSchema.required, ['groupId']);
+  assert.deepEqual(MCP_TOOLS.find(item => item.name === 'join_activity').inputSchema.required, ['groupId', 'participationMode']);
 
   const result = await mcp('get_activity_recommendations', { interest: null, participation_mode: 'observe' });
   assert.equal(result.status, 200);
@@ -162,19 +162,30 @@ test('MCP Streamable HTTP GET provides an event stream and rejects a foreign ori
 });
 
 test('activities, memberships, guides, and session endpoints expose the expanded catalog', async () => {
+  const saved = await call('PATCH', '/api/me/preferences', { interests: ['gardening'], detail: 'stepwise', captions: true, textSize: 'large', participationMode: 'text' });
+  assert.equal(saved.data.preferences.participationMode, 'text');
   const catalog = await call('GET', '/api/activities');
   assert.equal(catalog.data.items.length, 4);
-  assert.deepEqual(catalog.data.items.map(item => item.id), ['garden-circle', 'slow-chess', 'ragas-stories', 'chai-sketch']);
+  assert.deepEqual(catalog.data.items.map(item => item.id).sort(), ['garden-circle', 'slow-chess', 'ragas-stories', 'chai-sketch'].sort());
+  assert.ok(catalog.data.items.find(item => item.id === 'slow-chess').matchReasons.some(reason => reason.includes('preferred participation style: text')));
   assert.equal((await call('GET', '/api/activities?interest=games&participation_mode=text')).data.items[0].id, 'slow-chess');
 
-  const joined = await mcp('join_activity', { groupId: 'garden-circle' });
+  const joined = await mcp('join_activity', { groupId: 'garden-circle', participationMode: null });
   assert.equal(joined.data.result.structuredContent.joined, true);
+  assert.equal(joined.data.result.structuredContent.participationMode, 'observe');
   const sessions = await call('GET', '/api/sessions');
   assert.equal(sessions.data.items.length, 2);
   assert.ok(sessions.data.items.every(session => session.groupId === 'garden-circle'));
   const left = await mcp('leave_activity', { groupId: 'garden-circle' });
   assert.equal(left.data.result.structuredContent.joined, false);
   assert.equal((await call('GET', '/api/sessions')).data.items.length, 0);
+
+  const chess = await mcp('join_activity', { groupId: 'slow-chess', participationMode: null });
+  assert.equal(chess.data.result.structuredContent.participationMode, 'text');
+  const badMode = await mcp('join_activity', { groupId: 'garden-circle', participationMode: 'text' });
+  assert.equal(badMode.data.result.isError, true);
+  assert.equal((await call('GET', '/api/sessions')).data.items.length, 2);
+  await mcp('leave_activity', { groupId: 'slow-chess' });
 
   for (const guide of ['herb-pot', 'masala-chai', 'balcony-compost']) {
     const response = await call('GET', `/api/guidance?guide=${guide}&detail=stepwise`);
@@ -248,7 +259,7 @@ test('offline agent plans multiple intents and urgent contact prompts only creat
 test('TV state returns unified user, session, activity, guide, and help status', async () => {
   const result = await call('GET', '/api/tv/state');
   assert.equal(result.status, 200);
-  assert.deepEqual(Object.keys(result.data), ['user', 'nextSession', 'joinedSessions', 'allActivities', 'activeGuide', 'latestHelpStatus']);
+  assert.deepEqual(Object.keys(result.data), ['user', 'nextSession', 'joinedSessions', 'allActivities', 'recommendationNote', 'activeGuide', 'latestHelpStatus']);
   assert.equal(result.data.allActivities.length, 4);
   assert.equal(result.data.user.name, 'Asha');
   assert.equal(result.data.activeGuide.guideId, 'herb-pot');

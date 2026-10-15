@@ -109,7 +109,8 @@ function makeFilterChips(container, options, key) {
 }
 function activityCard(activity) {
   const reasons = activity.matchReasons || [];
-  return `<article class="activity-card" id="activity-${escapeHtml(activity.id)}"><div class="activity-icon" aria-hidden="true">${{ 'garden-circle': '🌱', 'slow-chess': '♟', 'ragas-stories': '♫', 'chai-sketch': '✎' }[activity.id] || '✳'}</div><div class="activity-copy"><p class="eyebrow">${escapeHtml(activity.recurrence)} · RECURRING CLUB</p><h2>${escapeHtml(activity.title)}</h2><p>${escapeHtml(activity.description)}</p>${reasons.length ? `<p class="match-reason">Why it may fit: ${reasons.map(escapeHtml).join(' ')}</p>` : ''}<div class="tag-list">${activity.tags.map(tag => `<span class="badge">${escapeHtml(tag)}</span>`).join('')}</div><ul>${activity.access.map(note => `<li>${escapeHtml(note)}</li>`).join('')}</ul><p class="next-label">Next session · ${new Date(activity.nextAt).toLocaleString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</p><div class="button-row"><button class="${activity.joined ? 'secondary' : 'primary'} activity-toggle" data-id="${escapeHtml(activity.id)}" data-joined="${activity.joined}">${activity.joined ? 'Leave group' : `Join ${escapeHtml(activity.title)}`}</button><button class="text-button activity-info" data-id="${escapeHtml(activity.id)}">Details</button></div></div></article>`;
+  const mode = activity.joined ? activity.joinedParticipationMode : activity.defaultParticipationMode;
+  return `<article class="activity-card" id="activity-${escapeHtml(activity.id)}"><div class="activity-icon" aria-hidden="true">${{ 'garden-circle': '🌱', 'slow-chess': '♟', 'ragas-stories': '♫', 'chai-sketch': '✎' }[activity.id] || '✳'}</div><div class="activity-copy"><p class="eyebrow">${escapeHtml(activity.recurrence)} · RECURRING CLUB</p><h2>${escapeHtml(activity.title)}</h2><p>${escapeHtml(activity.description)}</p>${reasons.length ? `<p class="match-reason">Why it may fit: ${reasons.map(escapeHtml).join(' ')}</p>` : ''}<div class="tag-list">${activity.tags.map(tag => `<span class="badge">${escapeHtml(tag)}</span>`).join('')}</div><ul>${activity.access.map(note => `<li>${escapeHtml(note)}</li>`).join('')}</ul><p class="next-label">Next session · ${new Date(activity.nextAt).toLocaleString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</p><p class="mode-note">${activity.joined ? 'Your participation choice' : 'Suggested participation'}: ${escapeHtml(mode || 'choose')}. Change this in Privacy.</p><div class="button-row"><button class="${activity.joined ? 'secondary' : 'primary'} activity-toggle" data-id="${escapeHtml(activity.id)}" data-mode="${escapeHtml(mode || 'choose')}" data-joined="${activity.joined}">${activity.joined ? 'Leave group' : `Join ${escapeHtml(activity.title)}`}</button><button class="text-button activity-info" data-id="${escapeHtml(activity.id)}">Details</button></div></div></article>`;
 }
 async function loadActivities() {
   makeFilterChips($('#interestFilters'), interestOptions, 'interest');
@@ -123,7 +124,7 @@ async function loadActivities() {
     $('#activityList').innerHTML = filtered.length ? filtered.map(activityCard).join('') : '<div class="card"><h2>No activities match those filters</h2><p>Try clearing one filter to see more options.</p></div>';
     $('#activityList').querySelectorAll('.activity-toggle').forEach(button => button.addEventListener('click', async () => {
       const join = button.dataset.joined !== 'true';
-      try { const result = await mcpCall(join ? 'join_activity' : 'leave_activity', { groupId: button.dataset.id }); announce(result.message); loadActivities(); loadGroups(); loadTvState(); }
+      try { const result = await mcpCall(join ? 'join_activity' : 'leave_activity', join ? { groupId: button.dataset.id, participationMode: button.dataset.mode } : { groupId: button.dataset.id }); announce(result.message); loadActivities(); loadGroups(); loadTvState(); }
       catch (exception) { announce(exception.message, true); }
     }));
     $('#activityList').querySelectorAll('.activity-info').forEach(button => button.addEventListener('click', () => { document.getElementById(`activity-${button.dataset.id}`).scrollIntoView({ block: 'center', behavior: 'smooth' }); document.querySelector(`#activity-${button.dataset.id} .activity-toggle`).focus(); }));
@@ -134,7 +135,7 @@ async function loadGroups() {
     const { items } = await api('/api/sessions');
     const target = $('#groupList');
     if (!items.length) { target.innerHTML = '<div class="card"><h2>No groups yet</h2><p>Explore activities and join one when it feels right.</p><button class="primary" data-view="activities">Explore activities</button></div>'; target.querySelector('[data-view]').onclick = () => go('activities'); return; }
-    target.innerHTML = items.map(item => `<article class="group-item"><p class="eyebrow">${escapeHtml(item.recurrence)}</p><h2>${escapeHtml(item.title)}</h2><p>${escapeHtml(item.topic)}</p><p><strong>Next session</strong> · ${new Date(item.startsAt).toLocaleString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' })}</p><p>${item.access.map(escapeHtml).join(' · ')}</p><button class="secondary leave-group" data-id="${escapeHtml(item.groupId)}">Leave group</button></article>`).join('');
+    target.innerHTML = items.map(item => `<article class="group-item"><p class="eyebrow">${escapeHtml(item.recurrence)}</p><h2>${escapeHtml(item.title)}</h2><p>${escapeHtml(item.topic)}</p><p><strong>Next session</strong> · ${new Date(item.startsAt).toLocaleString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' })}</p><p>${item.access.map(escapeHtml).join(' · ')}</p><p>Your participation choice: ${escapeHtml(item.participationMode || 'choose')}.</p><button class="secondary leave-group" data-id="${escapeHtml(item.groupId)}">Leave group</button></article>`).join('');
     target.querySelectorAll('.leave-group').forEach(button => button.onclick = async () => { try { await mcpCall('leave_activity', { groupId: button.dataset.id }); announce('You left the group. You can join again at any time.'); loadGroups(); loadActivities(); loadTvState(); } catch (exception) { announce(exception.message, true); } });
   } catch (exception) { announce(exception.message, true); }
 }
@@ -216,7 +217,9 @@ async function loadPreferences() {
     const detail = document.createElement('select'); detail.id = 'prefDetail'; detail.innerHTML = '<option value="stepwise">One step at a time</option><option value="brief">Quick overview</option>'; detail.value = preferences.detail;
     const sizeLabel = document.createElement('label'); sizeLabel.htmlFor = 'prefTextSize'; sizeLabel.textContent = 'Text size on Saathi screens';
     const size = document.createElement('select'); size.id = 'prefTextSize'; size.innerHTML = '<option value="large">Large</option><option value="default">Default</option>'; size.value = preferences.textSize;
-    form.append(captionsLabel, detailLabel, detail, sizeLabel, size); $('#preferenceList').replaceChildren(fieldset, form);
+    const modeLabel = document.createElement('label'); modeLabel.htmlFor = 'prefParticipationMode'; modeLabel.textContent = 'How you prefer to take part';
+    const mode = document.createElement('select'); mode.id = 'prefParticipationMode'; mode.innerHTML = '<option value="">No preference</option><option value="speak">Speak</option><option value="choose">Choose controls</option><option value="text">Use text</option><option value="observe">Observe or listen</option>'; mode.value = preferences.participationMode || '';
+    form.append(captionsLabel, detailLabel, detail, sizeLabel, size, modeLabel, mode); $('#preferenceList').replaceChildren(fieldset, form);
     $('#preferenceStatus').textContent = 'These choices are shared with the TV companion preview and Vega app.';
   } catch (exception) { announce(exception.message, true); }
 }
@@ -226,6 +229,7 @@ $('#savePrefs').addEventListener('click', async () => {
     detail: $('#prefDetail').value,
     captions: $('#prefCaptions').checked,
     textSize: $('#prefTextSize').value,
+    participationMode: $('#prefParticipationMode').value || null,
   };
   const button = $('#savePrefs'); button.disabled = true; $('#preferenceStatus').textContent = 'Saving your choices…';
   try { const result = await api('/api/me/preferences', { method: 'PATCH', body: JSON.stringify(preferences) }); state.detailTouched = false; $('#preferenceStatus').textContent = result.message; loadTvState(); }

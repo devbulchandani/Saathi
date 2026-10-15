@@ -10,12 +10,12 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 const execFileAsync = promisify(execFile);
 const MCP_VERSION = '2025-11-25';
 const user = { id: 'demo-person', name: 'Asha' };
-let preferences = { interests: ['gardening'], detail: 'stepwise', captions: true, textSize: 'large' };
+let preferences = { interests: ['gardening'], detail: 'stepwise', captions: true, textSize: 'large', participationMode: null };
 const activities = [
-  { id: 'garden-circle', title: 'Garden Circle', description: 'Planting herbs & balcony greens', recurrence: 'Sundays 4:00 PM', nextAt: '2026-10-18T16:00:00+05:30', tags: ['gardening', 'captions', 'observe-ok'], participation_modes: ['speak', 'choose', 'observe'], access: ['Captions', 'Written steps', 'Observing is welcome'], host: 'Saathi community host', joined: false },
-  { id: 'slow-chess', title: 'Slow Morning Chess', description: 'Untimed friendly tactics', recurrence: 'Tuesdays 10:30 AM', nextAt: '2026-10-20T10:30:00+05:30', tags: ['games', 'no-timer', 'text-moves'], participation_modes: ['speak', 'choose', 'text', 'observe'], access: ['No timer', 'Moves shown in text', 'Take a break at any time'], host: 'Saathi community host', joined: false },
-  { id: 'ragas-stories', title: 'Old Film Songs & Stories', description: 'Listening & trivia circle', recurrence: 'Thursdays 6:00 PM', nextAt: '2026-10-22T18:00:00+05:30', tags: ['music', 'captions', 'audio-described'], participation_modes: ['speak', 'choose', 'observe'], access: ['Captions', 'Audio-described notes', 'Listen or join the conversation'], host: 'Saathi community host', joined: false },
-  { id: 'chai-sketch', title: 'Postcard Sketching', description: 'Simple everyday drawing', recurrence: 'Saturdays 11:00 AM', nextAt: '2026-10-17T11:00:00+05:30', tags: ['art', 'stepwise', 'observe-ok'], participation_modes: ['speak', 'choose', 'text', 'observe'], access: ['Step-by-step prompts', 'Observing is welcome', 'No timed rounds'], host: 'Saathi community host', joined: false },
+  { id: 'garden-circle', title: 'Garden Circle', description: 'Planting herbs & balcony greens', recurrence: 'Sundays 4:00 PM', nextAt: '2026-10-18T16:00:00+05:30', tags: ['gardening', 'captions', 'observe-ok'], participation_modes: ['speak', 'choose', 'observe'], access: ['Captions', 'Written steps', 'Observing is welcome'], host: 'Saathi community host', joined: false, joinedParticipationMode: null },
+  { id: 'slow-chess', title: 'Slow Morning Chess', description: 'Untimed friendly tactics', recurrence: 'Tuesdays 10:30 AM', nextAt: '2026-10-20T10:30:00+05:30', tags: ['games', 'no-timer', 'text-moves'], participation_modes: ['speak', 'choose', 'text', 'observe'], access: ['No timer', 'Moves shown in text', 'Take a break at any time'], host: 'Saathi community host', joined: false, joinedParticipationMode: null },
+  { id: 'ragas-stories', title: 'Old Film Songs & Stories', description: 'Listening & trivia circle', recurrence: 'Thursdays 6:00 PM', nextAt: '2026-10-22T18:00:00+05:30', tags: ['music', 'captions', 'audio-described'], participation_modes: ['speak', 'choose', 'observe'], access: ['Captions', 'Audio-described notes', 'Listen or join the conversation'], host: 'Saathi community host', joined: false, joinedParticipationMode: null },
+  { id: 'chai-sketch', title: 'Postcard Sketching', description: 'Simple everyday drawing', recurrence: 'Saturdays 11:00 AM', nextAt: '2026-10-17T11:00:00+05:30', tags: ['art', 'stepwise', 'observe-ok'], participation_modes: ['speak', 'choose', 'text', 'observe'], access: ['Step-by-step prompts', 'Observing is welcome', 'No timed rounds'], host: 'Saathi community host', joined: false, joinedParticipationMode: null },
 ];
 const sessions = activities.flatMap(activity => [0, 1].map(week => ({
   id: `${activity.id}-session-${week + 1}`,
@@ -26,6 +26,7 @@ const sessions = activities.flatMap(activity => [0, 1].map(week => ({
   recurrence: activity.recurrence,
   access: activity.access,
   joined: false,
+  participationMode: null,
 })));
 const guides = {
   'herb-pot': {
@@ -110,7 +111,7 @@ const emptySchema = { type: 'object', properties: {}, required: [], additionalPr
 export const MCP_TOOLS = [
   { name: 'get_my_preferences', description: 'Read the demo user preferences. Does not change anything.', inputSchema: emptySchema },
   { name: 'get_activity_recommendations', description: 'Find seeded recurring clubs. An explicit interest filters results; when interest is null, rank all clubs using the user’s saved interests and caption preference. Use each item’s matchReasons to explain the ranking; preferences never hide clubs. Filter by participation mode only when the user asks.', inputSchema: { type: 'object', properties: { interest: { type: ['string', 'null'], description: 'Optional explicit interest filter. When null, rank all compatible clubs using saved preferences without hiding clubs.' }, participation_mode: { type: ['string', 'null'], description: 'Optional user-requested mode: speak, choose, text, or observe.' } }, required: ['interest', 'participation_mode'], additionalProperties: false } },
-  { name: 'join_activity', description: 'Join the selected recurring club after the user asks to join it. Requires the activity group id.', inputSchema: { type: 'object', properties: { groupId: { type: 'string', minLength: 1 } }, required: ['groupId'], additionalProperties: false } },
+  { name: 'join_activity', description: 'Join the selected recurring club after the user asks to join it. Set participationMode to null unless the user explicitly asks for a style. Null uses the saved preference when supported, otherwise an available welcoming mode.', inputSchema: { type: 'object', properties: { groupId: { type: 'string', minLength: 1 }, participationMode: { type: ['string', 'null'], enum: ['speak', 'choose', 'text', 'observe', null] } }, required: ['groupId', 'participationMode'], additionalProperties: false } },
   { name: 'leave_activity', description: 'Leave the selected recurring club after the user asks to leave it.', inputSchema: { type: 'object', properties: { groupId: { type: 'string', minLength: 1 } }, required: ['groupId'], additionalProperties: false } },
   { name: 'get_my_upcoming_sessions', description: 'List the user’s upcoming sessions in joined clubs.', inputSchema: emptySchema },
   { name: 'get_task_guidance', description: 'Read one of the curated, non-medical learning guides. Detail must be stepwise or brief.', inputSchema: { type: 'object', properties: { guideId: { type: 'string', enum: Object.keys(guides) }, detail: { type: 'string', enum: ['stepwise', 'brief'] } }, required: ['guideId', 'detail'], additionalProperties: false } },
@@ -198,14 +199,17 @@ function getActivityRecommendations({ interest = null, participation_mode = null
     .map(activity => {
       const matchedInterests = preferenceInterests.filter(value => activity.tags.includes(value));
       const supportsCaptionPreference = preferences.captions && activity.tags.includes('captions');
+      const supportsModePreference = Boolean(preferences.participationMode && activity.participation_modes.includes(preferences.participationMode));
+      const defaultParticipationMode = supportsModePreference ? preferences.participationMode : activity.participation_modes.includes('observe') ? 'observe' : activity.participation_modes[0];
       const matchReasons = [];
       if (matchedInterests.length) matchReasons.push(`${activity.title} matches ${explicitInterest ? 'the interest you asked for' : 'an interest you chose'}: ${matchedInterests.join(', ')}.`);
       if (supportsCaptionPreference) matchReasons.push(`The ${activity.title} listing includes caption information.`);
+      if (supportsModePreference) matchReasons.push(`${activity.title} supports your preferred participation style: ${preferences.participationMode}.`);
       return {
         id: activity.id, title: activity.title, description: activity.description, recurrence: activity.recurrence,
         nextAt: activity.nextAt, tags: activity.tags, participation_modes: activity.participation_modes,
-        access: activity.access, joined: activity.joined, matchReasons,
-        _score: matchedInterests.length * 2 + Number(supportsCaptionPreference),
+        access: activity.access, joined: activity.joined, joinedParticipationMode: activity.joinedParticipationMode, defaultParticipationMode, matchReasons,
+        _score: matchedInterests.length * 2 + Number(supportsCaptionPreference) + Number(supportsModePreference) * 2,
       };
     })
     .sort((a, b) => b._score - a._score || activities.findIndex(item => item.id === a.id) - activities.findIndex(item => item.id === b.id))
@@ -214,8 +218,8 @@ function getActivityRecommendations({ interest = null, participation_mode = null
   const note = explicitInterest
     ? 'Filtered by the interest you asked for. Other clubs are available by clearing the interest filter.'
     : hasPreferenceMatches
-      ? 'Ranked using your saved interests and caption preference. All clubs remain available.'
-      : 'All clubs are shown. Choose interests in Saathi Privacy to personalize their order.';
+      ? 'Ranked using your saved interests, caption preference, and participation style. All clubs remain available.'
+      : 'All clubs are shown. Choose interests or a participation style in Saathi Privacy to personalize their order.';
   return { items, personalized: hasPreferenceMatches && !explicitInterest, note };
 }
 
@@ -238,9 +242,18 @@ export async function invokeTool(name, args = {}) {
     case 'leave_activity': {
       const activity = findActivity(args.groupId);
       if (!activity) return { isError: true, structuredContent: { error: { code: 'ACTIVITY_NOT_FOUND', message: 'That activity could not be found.' } } };
-      activity.joined = name === 'join_activity';
-      sessions.filter(session => session.groupId === activity.id).forEach(session => { session.joined = activity.joined; });
-      result = { groupId: activity.id, joined: activity.joined, message: activity.joined ? `You joined ${activity.title}.` : `You left ${activity.title}.` };
+      const joining = name === 'join_activity';
+      if (joining) {
+        const mode = args.participationMode || (preferences.participationMode && activity.participation_modes.includes(preferences.participationMode) ? preferences.participationMode : activity.participation_modes.includes('observe') ? 'observe' : activity.participation_modes[0]);
+        if (!activity.participation_modes.includes(mode)) return { isError: true, structuredContent: { error: { code: 'PARTICIPATION_MODE_UNAVAILABLE', message: `${activity.title} does not support ${mode}. Available options: ${activity.participation_modes.join(', ')}.` } } };
+        activity.joined = true;
+        activity.joinedParticipationMode = mode;
+      } else {
+        activity.joined = false;
+        activity.joinedParticipationMode = null;
+      }
+      sessions.filter(session => session.groupId === activity.id).forEach(session => { session.joined = activity.joined; session.participationMode = activity.joinedParticipationMode; });
+      result = { groupId: activity.id, joined: activity.joined, participationMode: activity.joinedParticipationMode, message: activity.joined ? `You joined ${activity.title}. Your participation choice is ${activity.joinedParticipationMode}.` : `You left ${activity.title}.` };
       break;
     }
     case 'get_my_upcoming_sessions':
@@ -622,7 +635,9 @@ async function planOffline(message, history = []) {
       uiAction.view = 'activities';
       reply = `Which club would you like to join? The current options are ${choices.items.map(item => item.title).join(', ')}.`;
     } else {
-      const result = await runInternalTool('join_activity', { groupId: groupId || activityForPrompt(text) }, calls);
+      const explicitMode = /\b(observe|watch|listen only)\b/.test(lower) ? 'observe' : /\b(text|typed|write)\b/.test(lower) ? 'text' : /\b(choose|button|remote)\b/.test(lower) ? 'choose' : /\b(speak|talk|voice)\b/.test(lower) ? 'speak' : null;
+      const joinArgs = { groupId: groupId || activityForPrompt(text), participationMode: explicitMode };
+      const result = await runInternalTool('join_activity', joinArgs, calls);
       uiAction.view = 'activities'; uiAction.highlightId = groupId || activityForPrompt(text);
       reply = result.error?.message || `${result.message} You can find its sessions in My Groups.`;
     }
@@ -733,7 +748,7 @@ export async function route(req, res) {
   if (req.method === 'PATCH' && url.pathname === '/api/me/preferences') {
     try {
       const input = await body(req);
-      const allowed = new Set(['interests', 'detail', 'captions', 'textSize']);
+      const allowed = new Set(['interests', 'detail', 'captions', 'textSize', 'participationMode']);
       const unexpected = Object.keys(input).find(key => !allowed.has(key));
       if (unexpected) return json(res, 400, { error: { code: 'INVALID_PREFERENCES', message: `Unknown preference: ${unexpected}.` } });
       if (!Array.isArray(input.interests) || input.interests.some(interest => !['gardening', 'games', 'music', 'art'].includes(interest)) || new Set(input.interests).size !== input.interests.length) {
@@ -742,12 +757,13 @@ export async function route(req, res) {
       if (!['stepwise', 'brief'].includes(input.detail)) return json(res, 400, { error: { code: 'INVALID_PREFERENCES', message: 'Instruction detail must be stepwise or brief.' } });
       if (typeof input.captions !== 'boolean') return json(res, 400, { error: { code: 'INVALID_PREFERENCES', message: 'Captions must be on or off.' } });
       if (!['large', 'default'].includes(input.textSize)) return json(res, 400, { error: { code: 'INVALID_PREFERENCES', message: 'Text size must be large or default.' } });
-      preferences = { interests: [...input.interests], detail: input.detail, captions: input.captions, textSize: input.textSize };
+      if (input.participationMode != null && !['speak', 'choose', 'text', 'observe'].includes(input.participationMode)) return json(res, 400, { error: { code: 'INVALID_PREFERENCES', message: 'Participation style must be speak, choose, text, observe, or null.' } });
+      preferences = { interests: [...input.interests], detail: input.detail, captions: input.captions, textSize: input.textSize, participationMode: input.participationMode || null };
       return json(res, 200, { preferences, message: 'Your choices are saved across the Saathi demo.' });
     } catch { return json(res, 400, { error: { code: 'INVALID_REQUEST', message: 'Preference choices could not be read.' } }); }
   }
   if (req.method === 'DELETE' && url.pathname === '/api/me/preferences') {
-    preferences = { interests: [], detail: 'brief', captions: false, textSize: 'default' };
+    preferences = { interests: [], detail: 'brief', captions: false, textSize: 'default', participationMode: null };
     return json(res, 200, { preferences, message: 'Demo preferences were cleared.' });
   }
   if (req.method === 'GET' && url.pathname === '/api/activities') {
@@ -759,8 +775,9 @@ export async function route(req, res) {
   if (req.method === 'POST' && membershipRoute) {
     const activity = findActivity(membershipRoute[1]);
     if (!activity) return json(res, 404, { error: { code: 'ACTIVITY_NOT_FOUND', message: 'That activity could not be found.' } });
-    const result = await invokeTool(membershipRoute[2] === 'join' ? 'join_activity' : 'leave_activity', { groupId: activity.id });
-    return json(res, 200, result.structuredContent);
+    const input = await body(req).catch(() => ({}));
+    const result = await invokeTool(membershipRoute[2] === 'join' ? 'join_activity' : 'leave_activity', membershipRoute[2] === 'join' ? { groupId: activity.id, participationMode: input.participationMode || null } : { groupId: activity.id });
+    return json(res, result.isError ? 400 : 200, result.structuredContent);
   }
   if (req.method === 'GET' && url.pathname === '/api/sessions') return json(res, 200, { items: getSessions() });
   if (req.method === 'GET' && url.pathname === '/api/guidance') {
