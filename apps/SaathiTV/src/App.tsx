@@ -24,6 +24,7 @@ type Activity = {
   access: string[];
   participation_modes: string[];
   joined: boolean;
+  matchReasons?: string[];
 };
 
 type Session = {id: string; title: string; topic: string; startsAt: string; recurrence: string; access: string[]};
@@ -32,6 +33,7 @@ type TvState = {
   nextSession: {title: string; recurrence: string; startsAt: string} | null;
   joinedSessions: Session[];
   allActivities: Activity[];
+  recommendationNote?: string;
   activeGuide: {title: string; currentStepNumber: number; totalSteps: number} | null;
   latestHelpStatus: {status: string} | null;
 };
@@ -193,7 +195,7 @@ export const App = () => {
         <>
           <View style={styles.filterSection}>
             <Text style={styles.sectionTitle}>Explore clubs</Text>
-            <Text style={styles.scrollHint}>Use Left and Right to browse clubs · Down to see more</Text>
+            <Text style={[styles.scrollHint, largeText && {fontSize: 16, lineHeight: 22}]}>{tvState?.recommendationNote ?? 'Use Left and Right to browse clubs · Down to see more'}</Text>
             <TVFocusGuideView style={styles.filterRow}>
               {filters.map((item) => {
                 const id = `filter-${item}`;
@@ -216,6 +218,7 @@ export const App = () => {
                   <Text style={styles.activityCategory}>{categoryFor(activity)?.toUpperCase() ?? 'CLUB'}</Text>
                   <Text style={[styles.activityTitle, largeText && {fontSize: 25, lineHeight: 32}]}>{activity.title}</Text>
                   <Text style={[styles.activityDescription, largeText && {fontSize: 17, lineHeight: 24}]}>{activity.description}</Text>
+                  {activity.matchReasons?.length ? <Text style={[styles.recommendationReason, largeText && {fontSize: 15, lineHeight: 21}]}>Why it may fit: {activity.matchReasons.join(' ')}</Text> : null}
                   <Text style={[styles.recurrence, largeText && {fontSize: 17}]}>{activity.recurrence}</Text>
                   <View style={styles.accessList}>
                     {activity.access.slice(0, 2).map((access) => <Text key={access} style={[styles.accessText, largeText && {fontSize: 15, lineHeight: 21}]}>•  {access}</Text>)}
@@ -345,6 +348,7 @@ const styles = StyleSheet.create({
   nextTime: {fontSize: 15, color: '#D0DDDE', marginTop: 3},
   filterSection: {marginBottom: 12},
   scrollHint: {fontSize: 14, color: '#AFC8C9', marginTop: -5, marginBottom: 7},
+  recommendationReason: {fontSize: 13, lineHeight: 17, color: '#315B48', backgroundColor: '#E5EFE6', borderRadius: 7, paddingHorizontal: 8, paddingVertical: 5, marginTop: 4, marginBottom: 4},
   navRow: {flexDirection: 'row', gap: 12, marginBottom: 16},
   navTab: {borderRadius: 10, paddingHorizontal: 18, paddingVertical: 9, borderWidth: 1, borderColor: '#668087'},
   navTabSelected: {backgroundColor: '#D4E7DE', borderColor: '#D4E7DE'},

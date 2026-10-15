@@ -82,7 +82,7 @@ function summarizeAgentTools(calls = []) {
   const summaries = [];
   for (const call of calls) {
     const result = call.result || {};
-    if (call.name === 'get_activity_recommendations') summaries.push({ tool: call.name, items: (result.items || []).slice(0, 4).map(item => ({ id: item.id, title: item.title, description: item.description, recurrence: item.recurrence, tags: item.tags })) });
+    if (call.name === 'get_activity_recommendations') summaries.push({ tool: call.name, note: result.note, items: (result.items || []).slice(0, 4).map(item => ({ id: item.id, title: item.title, description: item.description, recurrence: item.recurrence, tags: item.tags, matchReasons: item.matchReasons })) });
     else if (call.name === 'get_task_guidance') summaries.push({ tool: call.name, guideId: result.guideId, title: result.title, detail: result.detail, currentStepNumber: result.currentStepNumber });
     else if (call.name === 'join_activity' || call.name === 'leave_activity') summaries.push({ tool: call.name, groupId: result.groupId, joined: result.joined, message: result.message });
     else if (call.name === 'get_my_upcoming_sessions') summaries.push({ tool: call.name, items: (result.items || []).slice(0, 8).map(item => ({ groupId: item.groupId, title: item.title, startsAt: item.startsAt, recurrence: item.recurrence })) });
@@ -109,7 +109,7 @@ function getAgentHistory(session) {
 const emptySchema = { type: 'object', properties: {}, required: [], additionalProperties: false };
 export const MCP_TOOLS = [
   { name: 'get_my_preferences', description: 'Read the demo user preferences. Does not change anything.', inputSchema: emptySchema },
-  { name: 'get_activity_recommendations', description: 'Find seeded recurring clubs. Filter by declared interest and a participation mode such as observe or text.', inputSchema: { type: 'object', properties: { interest: { type: ['string', 'null'], description: 'Optional interest tag, or null for any interest.' }, participation_mode: { type: ['string', 'null'], description: 'Optional mode: speak, choose, text, or observe.' } }, required: ['interest', 'participation_mode'], additionalProperties: false } },
+  { name: 'get_activity_recommendations', description: 'Find seeded recurring clubs. An explicit interest filters results; when interest is null, rank all clubs using the user’s saved interests and caption preference. Use each item’s matchReasons to explain the ranking; preferences never hide clubs. Filter by participation mode only when the user asks.', inputSchema: { type: 'object', properties: { interest: { type: ['string', 'null'], description: 'Optional explicit interest filter. When null, rank all compatible clubs using saved preferences without hiding clubs.' }, participation_mode: { type: ['string', 'null'], description: 'Optional user-requested mode: speak, choose, text, or observe.' } }, required: ['interest', 'participation_mode'], additionalProperties: false } },
   { name: 'join_activity', description: 'Join the selected recurring club after the user asks to join it. Requires the activity group id.', inputSchema: { type: 'object', properties: { groupId: { type: 'string', minLength: 1 } }, required: ['groupId'], additionalProperties: false } },
   { name: 'leave_activity', description: 'Leave the selected recurring club after the user asks to leave it.', inputSchema: { type: 'object', properties: { groupId: { type: 'string', minLength: 1 } }, required: ['groupId'], additionalProperties: false } },
   { name: 'get_my_upcoming_sessions', description: 'List the user’s upcoming sessions in joined clubs.', inputSchema: emptySchema },
@@ -120,6 +120,7 @@ export const MCP_TOOLS = [
 
 const toolMap = new Map(MCP_TOOLS.map(tool => [tool.name, tool]));
 const GUIDE_NOTE = 'General learning guidance only. Choose what works for you; Saathi cannot observe or verify a physical task.';
+const AGENT_SYSTEM_PROMPT = 'You are Saathi, a privacy-first activity and task guide. Use tools for facts and actions. When recommending clubs, use returned matchReasons to explain ranking, say that all clubs remain available, and never imply an unasked filter or a guaranteed fit. Never invent delivery or completed physical actions. For any request to contact Maya, prepare a sharing preview only. Never call create_help_request; that action requires a separate user-reviewed and explicitly confirmed UI step. Never disclose the user’s history or preferences to a contact.';
 
 function json(res, status, value, extraHeaders = {}) {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...extraHeaders });
@@ -188,6 +189,35 @@ function confirmPreview(previewId, confirmed) {
   return request;
 }
 function findActivity(groupId) { return activities.find(activity => activity.id === groupId); }
+function getActivityRecommendations({ interest = null, participation_mode = null } = {}) {
+  const explicitInterest = interest?.toLowerCase() || null;
+  const mode = participation_mode?.toLowerCase() || null;
+  const preferenceInterests = explicitInterest ? [explicitInterest] : preferences.interests;
+  const items = activities
+    .filter(activity => (!explicitInterest || activity.tags.includes(explicitInterest)) && (!mode || activity.participation_modes.includes(mode)))
+    .map(activity => {
+      const matchedInterests = preferenceInterests.filter(value => activity.tags.includes(value));
+      const supportsCaptionPreference = preferences.captions && activity.tags.includes('captions');
+      const matchReasons = [];
+      if (matchedInterests.length) matchReasons.push(`${activity.title} matches ${explicitInterest ? 'the interest you asked for' : 'an interest you chose'}: ${matchedInterests.join(', ')}.`);
+      if (supportsCaptionPreference) matchReasons.push(`The ${activity.title} listing includes caption information.`);
+      return {
+        id: activity.id, title: activity.title, description: activity.description, recurrence: activity.recurrence,
+        nextAt: activity.nextAt, tags: activity.tags, participation_modes: activity.participation_modes,
+        access: activity.access, joined: activity.joined, matchReasons,
+        _score: matchedInterests.length * 2 + Number(supportsCaptionPreference),
+      };
+    })
+    .sort((a, b) => b._score - a._score || activities.findIndex(item => item.id === a.id) - activities.findIndex(item => item.id === b.id))
+    .map(({ _score, ...activity }) => activity);
+  const hasPreferenceMatches = items.some(activity => activity.matchReasons.length > 0);
+  const note = explicitInterest
+    ? 'Filtered by the interest you asked for. Other clubs are available by clearing the interest filter.'
+    : hasPreferenceMatches
+      ? 'Ranked using your saved interests and caption preference. All clubs remain available.'
+      : 'All clubs are shown. Choose interests in Saathi Privacy to personalize their order.';
+  return { items, personalized: hasPreferenceMatches && !explicitInterest, note };
+}
 
 export async function invokeTool(name, args = {}) {
   const definition = toolMap.get(name);
@@ -201,9 +231,7 @@ export async function invokeTool(name, args = {}) {
       result = { user, preferences };
       break;
     case 'get_activity_recommendations': {
-      const interest = args.interest?.toLowerCase();
-      const mode = args.participation_mode?.toLowerCase();
-      result = { items: activities.filter(activity => (!interest || activity.tags.includes(interest)) && (!mode || activity.participation_modes.includes(mode))).map(({ id, title, description, recurrence, nextAt, tags, participation_modes, access, joined }) => ({ id, title, description, recurrence, nextAt, tags, participation_modes, access, joined })) };
+      result = getActivityRecommendations(args);
       break;
     }
     case 'join_activity':
@@ -332,7 +360,7 @@ async function callBedrockMantle(message, allowedNames = null, history = []) {
     function: { name: tool.name, description: tool.description, parameters: tool.inputSchema },
   }));
   const messages = [
-    { role: 'system', content: 'You are Saathi, a privacy-first activity and task guide. Use tools for facts and actions. Never invent delivery or completed physical actions. For any request to contact Maya, prepare a sharing preview only. Never call create_help_request; that action requires a separate user-reviewed and explicitly confirmed UI step. Never disclose the user’s history or preferences to a contact.' },
+    { role: 'system', content: AGENT_SYSTEM_PROMPT },
     ...history.filter(item => ['user', 'assistant'].includes(item.role) && typeof item.content === 'string'),
     { role: 'user', content: message },
   ];
@@ -371,7 +399,7 @@ async function callBedrock(message, allowedNames = null, history = []) {
   const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'ap-south-1';
   const cli = process.env.AWS_CLI_PATH || 'aws';
   const definitions = toolsForProvider(allowedNames).map(toolSchemaForBedrock);
-  const system = [{ text: 'You are Saathi, a privacy-first activity and task guide. Use tools for facts and actions. Never invent delivery or completed physical actions. For any request to contact Maya, prepare a sharing preview only. Never call create_help_request; that action requires a separate user-reviewed and explicitly confirmed UI step. Never disclose the user’s history or preferences to a contact.' }];
+  const system = [{ text: AGENT_SYSTEM_PROMPT }];
   const messages = [
     ...history.filter(item => ['user', 'assistant'].includes(item.role) && typeof item.content === 'string').map(item => ({ role: item.role, content: [{ text: item.content }] })),
     { role: 'user', content: [{ text: message }] },
@@ -422,7 +450,7 @@ async function callOpenAI(message, allowedNames = null, history = []) {
   const definitions = toolsForProvider(allowedNames);
   const tools = definitions.map(toolSchemaForOpenAI);
   const input = [
-    { role: 'system', content: 'You are Saathi, a privacy-first activity and task guide. Use tools for all facts and actions. Never invent delivery or completed physical actions. For any request to contact Maya, prepare a sharing preview only. Never call create_help_request; that tool requires a separate user-reviewed and explicitly confirmed UI step. Never disclose the user’s history or preferences to a contact.' },
+    { role: 'system', content: AGENT_SYSTEM_PROMPT },
     ...history.filter(item => ['user', 'assistant'].includes(item.role) && typeof item.content === 'string'),
     { role: 'user', content: message },
   ];
@@ -459,7 +487,7 @@ async function callGemini(message, allowedNames = null, history = []) {
   let reply = '';
   for (let round = 0; round < 4; round++) {
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(process.env.GEMINI_API_KEY)}`;
-    const response = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ systemInstruction: { parts: [{ text: 'You are Saathi, a privacy-first activity and task guide. Use tools for facts. For any request to contact Maya, prepare a sharing preview only. Never call create_help_request; it requires separate user-reviewed and explicit UI confirmation. Never claim a message was delivered or a physical task was completed.' }] }, contents, tools, toolConfig: { functionCallingConfig: { mode: 'AUTO' } } }) });
+    const response = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ systemInstruction: { parts: [{ text: AGENT_SYSTEM_PROMPT }] }, contents, tools, toolConfig: { functionCallingConfig: { mode: 'AUTO' } } }) });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error?.message || `Gemini API returned ${response.status}`);
     const parts = data.candidates?.[0]?.content?.parts || [];
@@ -564,7 +592,17 @@ async function planOffline(message, history = []) {
     const participation_mode = /\b(observe|watch|listen only)\b/.test(lower) ? 'observe' : /\b(text|typed|write)\b/.test(lower) ? 'text' : null;
     const result = await runInternalTool('get_activity_recommendations', { interest, participation_mode }, calls);
     uiAction.view = 'activities'; uiAction.highlightId = result.items?.[0]?.id || null;
-    reply = result.items?.length ? `I found ${result.items.length} recurring club${result.items.length === 1 ? '' : 's'}: ${result.items.map(item => item.title).join(', ')}. Review the access notes and choose whether to join.` : 'I could not find a club matching both filters. You can clear a filter to see more.';
+    if (!result.items?.length) reply = 'I could not find a club matching both filters. You can clear a filter to see more.';
+    else {
+      const firstMatch = result.items[0];
+      const reason = firstMatch.matchReasons?.join(' ');
+      const savedPreferenceCopy = !interest && result.personalized && reason
+        ? ` The list is ranked using your saved preferences. ${reason}`
+        : !interest && !preferences.interests.length
+          ? ' You can choose interests in Privacy if you want Saathi to personalize the order.'
+          : '';
+      reply = `I found ${result.items.length} recurring club${result.items.length === 1 ? '' : 's'}: ${result.items.map(item => item.title).join(', ')}.${savedPreferenceCopy} All clubs stay available; review the access notes and choose whether to join.`;
+    }
   }
   if (asksPriorActivityFollowUp && !asksActivities) {
     const groupId = activityForFollowUp(text, history);
@@ -671,7 +709,8 @@ function tvState() {
   const nextSession = getSessions().filter(session => Date.parse(session.startsAt) >= Date.now()).sort((a, b) => a.startsAt.localeCompare(b.startsAt))[0] || null;
   const guide = getGuide(activeGuide.guideId, activeGuide.detail);
   const latestHelpStatus = [...helpRequests.values()].at(-1) || null;
-  return { user: { ...user, preferences }, nextSession, joinedSessions: getSessions(), allActivities: activities, activeGuide: guide, latestHelpStatus };
+  const recommendations = getActivityRecommendations();
+  return { user: { ...user, preferences }, nextSession, joinedSessions: getSessions(), allActivities: recommendations.items, recommendationNote: recommendations.note, activeGuide: guide, latestHelpStatus };
 }
 
 export async function route(req, res) {
@@ -712,10 +751,9 @@ export async function route(req, res) {
     return json(res, 200, { preferences, message: 'Demo preferences were cleared.' });
   }
   if (req.method === 'GET' && url.pathname === '/api/activities') {
-    const interest = url.searchParams.get('interest')?.toLowerCase();
-    const mode = url.searchParams.get('participation_mode')?.toLowerCase();
-    const items = activities.filter(activity => (!interest || activity.tags.includes(interest)) && (!mode || activity.participation_modes.includes(mode)));
-    return json(res, 200, { items });
+    const interest = url.searchParams.get('interest');
+    const participation_mode = url.searchParams.get('participation_mode');
+    return json(res, 200, getActivityRecommendations({ interest, participation_mode }));
   }
   const membershipRoute = url.pathname.match(/^\/api\/activities\/([a-z0-9-]+)\/(join|leave)$/);
   if (req.method === 'POST' && membershipRoute) {
