@@ -11,6 +11,7 @@ This repository contains a no-extra-dependency Node.js demo server and web app, 
 - Explore four recurring clubs with different participation options: Garden Circle, Slow Morning Chess, Old Film Songs & Stories, and Postcard Sketching.
 - See clubs ranked by interests, caption preference, and participation style you chose, with a plain-language reason for a match. No club is hidden by personalization, and Saathi never auto-joins.
 - Join or leave a club and see its upcoming sessions in the web experience and Vega app through one local demo backend.
+- On the Vega TV app, open an optional one-step sample prompt for a club and choose a response with the remote. It is a local sample, not a live group call, and the response is not sent to anyone.
 - Ask Saathi about clubs or three curated learning guides. Conversation context is held in server memory for up to eight turns and 30 minutes of inactivity.
 - Change interests, caption preference, participation style, guide detail, and text size in **Privacy**. Joining records a participation choice. Preferences are shared with the web TV preview and Vega app while the server is running.
 - Review a practical-help message before confirming a simulated request. No contact is actually sent.

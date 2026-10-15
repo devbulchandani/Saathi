@@ -29,7 +29,7 @@ type Activity = {
   defaultParticipationMode?: 'speak' | 'choose' | 'text' | 'observe';
 };
 
-type Session = {id: string; title: string; topic: string; startsAt: string; recurrence: string; access: string[]; participationMode?: string | null};
+type Session = {id: string; groupId: string; title: string; topic: string; startsAt: string; recurrence: string; access: string[]; participationMode?: string | null};
 type TvState = {
   user: {name: string; preferences: {interests: string[]; captions: boolean; textSize: 'large' | 'default'; participationMode?: string | null}};
   nextSession: {title: string; recurrence: string; startsAt: string} | null;
@@ -41,6 +41,12 @@ type TvState = {
 };
 
 const filters = ['All', 'Gardening', 'Games', 'Music', 'Art'];
+const sharedPrompts: Record<string, {question: string; options: string[]}> = {
+  'garden-circle': {question: 'Which herb would you enjoy growing?', options: ['Mint for tea', 'Basil for cooking', 'Coriander for a fresh garnish']},
+  'slow-chess': {question: 'What would make a chess game feel comfortable today?', options: ['Take as long as I need', 'Talk through a move', 'Watch a round first']},
+  'ragas-stories': {question: 'What do you enjoy most in an old film song?', options: ['The melody', 'The story in the words', 'The singer’s voice']},
+  'chai-sketch': {question: 'What would you like to sketch on a postcard?', options: ['A favourite plant', 'A cup of chai', 'A window view']},
+};
 const fallbackActivities: Activity[] = [
   {id: 'garden-circle', title: 'Garden Circle', description: 'Planting herbs & balcony greens', recurrence: 'Sundays · 4:00 PM', tags: ['gardening', 'captions', 'observe-ok'], participation_modes: ['speak', 'choose', 'observe'], access: ['Captions', 'Written steps', 'Observing is welcome'], joined: false},
   {id: 'slow-chess', title: 'Slow Morning Chess', description: 'Untimed friendly tactics', recurrence: 'Tuesdays · 10:30 AM', tags: ['games', 'no-timer', 'text-moves'], participation_modes: ['speak', 'choose', 'text', 'observe'], access: ['No timer', 'Moves shown in text', 'Take a break at any time'], joined: false},
@@ -61,6 +67,8 @@ export const App = () => {
   const largeText = tvState?.user.preferences.textSize === 'large';
   const [notice, setNotice] = useState('');
   const [view, setView] = useState<'explore' | 'groups' | 'chat'>('explore');
+  const [promptGroupId, setPromptGroupId] = useState<string | null>(null);
+  const [promptAnswer, setPromptAnswer] = useState<string | null>(null);
   const [chatInput, setChatInput] = useState('');
   const [chatBusy, setChatBusy] = useState(false);
   const [chatSessionId] = useState(() => `tv-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`);
@@ -268,10 +276,29 @@ export const App = () => {
                   <Text style={styles.accessText}>{session.recurrence}</Text>
                   {session.participationMode ? <Text style={styles.accessText}>Participation choice: {session.participationMode}</Text> : null}
                   <Text style={styles.sessionNote}>Come as you are. You can listen, take part, or simply observe.</Text>
+                  <Pressable testID={`try-activity-${session.id}`} accessibilityRole="button" accessibilityLabel={`Try a sample activity for ${session.title}`} accessibilityHint="Opens one optional activity you can answer at your own pace" onFocus={() => setFocusedId(`try-activity-${session.id}`)} onPress={() => { setPromptGroupId(session.groupId); setPromptAnswer(null); }} style={[styles.promptOpen, focusedId === `try-activity-${session.id}` && styles.focused]}>
+                    <Text style={styles.promptOpenText}>Try a shared activity</Text>
+                  </Pressable>
                 </View>
               ))}
             </ScrollView>
           )}
+          {promptGroupId && sharedPrompts[promptGroupId] ? (
+            <View style={styles.promptPanel} accessibilityLiveRegion="polite">
+              <Text style={styles.activityCategory}>A SMALL SHARED PROMPT · OPTIONAL</Text>
+              <Text style={styles.promptQuestion}>{sharedPrompts[promptGroupId].question}</Text>
+              <TVFocusGuideView style={styles.promptChoices}>
+                {sharedPrompts[promptGroupId].options.map((option, index) => {
+                  const id = `prompt-choice-${index}`;
+                  const chosen = promptAnswer === option;
+                  return <Pressable key={option} testID={id} accessibilityRole="button" accessibilityState={{selected: chosen}} onFocus={() => setFocusedId(id)} onPress={() => setPromptAnswer(option)} style={[styles.promptChoice, chosen && styles.promptChoiceSelected, focusedId === id && styles.focused]}><Text style={[styles.promptChoiceText, chosen && styles.promptChoiceTextSelected]}>{option}</Text></Pressable>;
+                })}
+                <Pressable testID="prompt-skip" accessibilityRole="button" accessibilityLabel="Skip this activity" onFocus={() => setFocusedId('prompt-skip')} onPress={() => { setPromptGroupId(null); setPromptAnswer(null); }} style={[styles.promptSkip, focusedId === 'prompt-skip' && styles.focused]}><Text style={styles.promptSkipText}>Maybe later</Text></Pressable>
+              </TVFocusGuideView>
+              <Text style={styles.promptStatus} accessibilityLiveRegion="polite">{promptAnswer ? `Your choice: ${promptAnswer}. You can change it or leave it here.` : 'Choose any answer, or skip. There is no timer.'}</Text>
+              <Text style={styles.promptDisclaimer}>Sample activity on this TV. It is not a live group call and your choice is not sent to anyone.</Text>
+            </View>
+          ) : null}
         </View>
       ) : (
         <View style={styles.chatPanel}>
@@ -368,6 +395,19 @@ const styles = StyleSheet.create({
   emptyCopy: {fontSize: 18, lineHeight: 25, color: '#D0DDDE'},
   sessionCard: {width: 310, minHeight: 245, padding: 18, borderRadius: 14, backgroundColor: '#F4F1E8'},
   sessionNote: {fontSize: 15, lineHeight: 21, color: '#35515A', marginTop: 12},
+  promptOpen: {alignSelf: 'flex-start', paddingHorizontal: 15, paddingVertical: 10, borderRadius: 9, backgroundColor: '#D4E7DE', marginTop: 13, borderWidth: 1, borderColor: '#94B8A7'},
+  promptOpenText: {fontSize: 16, lineHeight: 22, color: '#102A35', fontWeight: '700'},
+  promptPanel: {marginTop: 18, borderRadius: 14, padding: 18, backgroundColor: '#F4F1E8'},
+  promptQuestion: {fontSize: 23, lineHeight: 30, color: '#102A35', fontWeight: '700', marginTop: 6, marginBottom: 12},
+  promptChoices: {flexDirection: 'row', flexWrap: 'wrap', gap: 10},
+  promptChoice: {minWidth: 190, maxWidth: 340, paddingHorizontal: 16, paddingVertical: 13, borderRadius: 10, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#A9B9AF'},
+  promptChoiceSelected: {backgroundColor: '#D4E7DE', borderColor: '#39715B'},
+  promptChoiceText: {fontSize: 17, lineHeight: 23, color: '#18333F', fontWeight: '600'},
+  promptChoiceTextSelected: {color: '#123F34'},
+  promptSkip: {paddingHorizontal: 15, paddingVertical: 11, borderRadius: 9, borderWidth: 1, borderColor: '#60777D'},
+  promptSkipText: {fontSize: 16, color: '#29464D', fontWeight: '600'},
+  promptStatus: {fontSize: 16, lineHeight: 23, color: '#18333F', marginTop: 12},
+  promptDisclaimer: {fontSize: 13, lineHeight: 19, color: '#53696B', marginTop: 7},
   sectionTitle: {fontSize: 22, color: '#FFFDF7', fontWeight: '700', marginBottom: 9},
   filterRow: {flexDirection: 'row', gap: 11},
   filterChip: {paddingHorizontal: 18, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#668087', backgroundColor: '#173640'},
