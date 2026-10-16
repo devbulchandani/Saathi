@@ -12,9 +12,9 @@ This repository contains a no-extra-dependency Node.js demo server and web app, 
 - See clubs ranked by interests, caption preference, and participation style you chose, with a plain-language reason for a match. No club is hidden by personalization, and Saathi never auto-joins.
 - Join or leave a club and see its upcoming sessions in the web experience and Vega app through one local demo backend.
 - On the Vega TV app, open an optional one-step sample prompt for a club and choose a response with the remote. It is a local sample, not a live group call, and the response is not sent to anyone.
-- In supported browsers, use **Speak** for one-shot chat input and voice confirmation while a help preview is open. On supported Vega devices, Alexa voice selection can activate named controls in the TV app; Alexa handles speech, and the TV app does not capture microphone audio.
+- In supported browsers, use **Speak** for one-shot chat input and voice confirmation while a help preview is open. The browser may use its own speech service.
 - Ask Saathi about clubs or three curated learning guides. Conversation context is held in server memory for up to eight turns and 30 minutes of inactivity.
-- On supported Vega devices, use Alexa voice selection to activate controls such as “Explore clubs,” “My gatherings,” or “Join Garden Circle.” Alexa handles the voice interaction; the Vega app does not capture microphone audio. The emulator can validate app navigation, but real Alexa voice selection requires a compatible device and remote.
+- Vega on-screen voice navigation is enabled for controls such as “Explore clubs,” “My gatherings,” and “Join Garden Circle.” Alexa handles speech; the app does not capture microphone audio. The Virtual Device supports UI/remote testing but does not use its microphone, so spoken selection needs a compatible physical device and Alexa Voice Remote.
 - Change interests, caption preference, participation style, guide detail, and text size in **Privacy**. Joining records a participation choice. Preferences are shared with the web TV preview and Vega app while the server is running.
 - Review a practical-help message before confirming a simulated request. No contact is actually sent.
 - Inspect MCP JSON-RPC requests and responses in the web app's **Agent & MCP Trace** drawer.

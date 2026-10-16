@@ -26,4 +26,4 @@ id = "/com.amazon.kepler.keplerscript_4@IKeplerScript_0"
 id = "com.saathi.tv.main"
 runtime-module = "/com.amazon.kepler.runtime.react_native_kepler_4@IReactNativeKepler_0"
 launch-type = "singleton"
-categories = ["com.amazon.category.main"]
+categories = ["com.amazon.category.main", "com.amazon.category.kva"]

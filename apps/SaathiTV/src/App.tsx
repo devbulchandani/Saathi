@@ -41,7 +41,7 @@ type TvState = {
 };
 
 const filters = ['All', 'Gardening', 'Games', 'Music', 'Art'];
-const VoicePressable = Pressable as React.ComponentType<React.ComponentProps<typeof Pressable> & {voiceOrdinal?: number; altLabels?: string[]; ariaLabel?: string}>;
+const VoicePressable = Pressable as React.ComponentType<React.ComponentProps<typeof Pressable> & {'aria-label'?: string; ariaPosInSet?: number; altLabels?: string[]}>;
 const sharedPrompts: Record<string, {question: string; options: string[]}> = {
   'garden-circle': {question: 'Which herb would you enjoy growing?', options: ['Mint for tea', 'Basil for cooking', 'Coriander for a fresh garnish']},
   'slow-chess': {question: 'What would make a chess game feel comfortable today?', options: ['Take as long as I need', 'Talk through a move', 'Watch a round first']},
@@ -197,7 +197,7 @@ export const App = () => {
           const selected = view === item;
           const label = item === 'explore' ? 'Explore clubs' : item === 'groups' ? 'My gatherings' : 'Chat with Saathi';
           return (
-            <VoicePressable key={item} testID={id} accessibilityRole="tab" accessibilityLabel={label} ariaLabel={label} accessibilityState={{selected}} altLabels={[item === 'explore' ? 'find activities' : item === 'groups' ? 'upcoming sessions' : 'ask Saathi']} hasTVPreferredFocus={item === 'explore'} onFocus={() => setFocusedId(id)} onPress={() => setView(item)} style={[styles.navTab, selected && styles.navTabSelected, focusedId === id && styles.focused]}>
+            <VoicePressable key={item} testID={id} accessibilityRole="tab" accessibilityLabel={label} aria-label={label} accessibilityState={{selected}} altLabels={[item === 'explore' ? 'find activities' : item === 'groups' ? 'upcoming sessions' : 'ask Saathi']} hasTVPreferredFocus={item === 'explore'} onFocus={() => setFocusedId(id)} onPress={() => setView(item)} style={[styles.navTab, selected && styles.navTabSelected, focusedId === id && styles.focused]}>
               <Text style={[styles.navText, selected && styles.navTextSelected]}>{item === 'explore' ? 'Explore clubs' : item === 'groups' ? `My gatherings${tvState?.joinedSessions.length ? ` (${tvState.joinedSessions.length})` : ''}` : 'Chat with Saathi'}</Text>
             </VoicePressable>
           );
@@ -217,7 +217,7 @@ export const App = () => {
                 const id = `filter-${item}`;
                 const selected = item === filter;
                 return (
-                  <VoicePressable key={item} testID={id} accessibilityRole="button" accessibilityState={{selected}} accessibilityLabel={`${item} activities`} ariaLabel={`${item} activities`} onFocus={() => setFocusedId(id)} onPress={() => setFilter(item)} style={[styles.filterChip, selected && styles.filterSelected, focusedId === id && styles.focused]}>
+                  <VoicePressable key={item} testID={id} accessibilityRole="button" accessibilityState={{selected}} accessibilityLabel={`${item} activities`} aria-label={`${item} activities`} onFocus={() => setFocusedId(id)} onPress={() => setFilter(item)} style={[styles.filterChip, selected && styles.filterSelected, focusedId === id && styles.focused]}>
                     <Text style={[styles.filterText, selected && styles.filterTextSelected]}>{item}</Text>
                   </VoicePressable>
                 );
@@ -244,7 +244,7 @@ export const App = () => {
                     testID={actionId}
                     accessibilityRole="button"
                     accessibilityLabel={`${activity.joined ? 'Leave' : 'Join'} ${activity.title}`}
-                    ariaLabel={`${activity.joined ? 'Leave' : 'Join'} ${activity.title}`}
+                    aria-label={`${activity.joined ? 'Leave' : 'Join'} ${activity.title}`}
                     altLabels={[`${activity.joined ? 'leave' : 'join'} ${activity.title}`, activity.title]}
                     accessibilityHint={connection !== 'connected' ? 'Connect to Saathi to save this choice' : activity.joined ? 'Removes this club from your upcoming sessions' : 'Adds its recurring sessions to your upcoming gatherings'}
                     accessibilityState={{disabled: connection !== 'connected' || busyId === activity.id}}
@@ -266,7 +266,7 @@ export const App = () => {
             <View style={styles.emptyCard}>
               <Text style={styles.emptyTitle}>Your seat is waiting</Text>
               <Text style={styles.emptyCopy}>Join a recurring club and its next sessions will appear here.</Text>
-              <VoicePressable testID="empty-explore" accessibilityRole="button" accessibilityLabel="Explore clubs" ariaLabel="Explore clubs" altLabels={['find activities']} onFocus={() => setFocusedId('empty-explore')} onPress={() => setView('explore')} style={[styles.actionButton, focusedId === 'empty-explore' && styles.focused]}>
+              <VoicePressable testID="empty-explore" accessibilityRole="button" accessibilityLabel="Explore clubs" aria-label="Explore clubs" altLabels={['find activities']} onFocus={() => setFocusedId('empty-explore')} onPress={() => setView('explore')} style={[styles.actionButton, focusedId === 'empty-explore' && styles.focused]}>
                 <Text style={styles.actionText}>Explore clubs</Text>
               </VoicePressable>
             </View>
@@ -281,7 +281,7 @@ export const App = () => {
                   <Text style={styles.accessText}>{session.recurrence}</Text>
                   {session.participationMode ? <Text style={styles.accessText}>Participation choice: {session.participationMode}</Text> : null}
                   <Text style={styles.sessionNote}>Come as you are. You can listen, take part, or simply observe.</Text>
-                  <VoicePressable testID={`try-activity-${session.id}`} accessibilityRole="button" accessibilityLabel={`Try a sample activity for ${session.title}`} ariaLabel={`Try a sample activity for ${session.title}`} altLabels={['try activity']} accessibilityHint="Opens one optional activity you can answer at your own pace" onFocus={() => setFocusedId(`try-activity-${session.id}`)} onPress={() => { setPromptGroupId(session.groupId); setPromptAnswer(null); }} style={[styles.promptOpen, focusedId === `try-activity-${session.id}` && styles.focused]}>
+                  <VoicePressable testID={`try-activity-${session.id}`} accessibilityRole="button" accessibilityLabel={`Try a sample activity for ${session.title}`} aria-label={`Try a sample activity for ${session.title}`} altLabels={['try activity']} accessibilityHint="Opens one optional activity you can answer at your own pace" onFocus={() => setFocusedId(`try-activity-${session.id}`)} onPress={() => { setPromptGroupId(session.groupId); setPromptAnswer(null); }} style={[styles.promptOpen, focusedId === `try-activity-${session.id}` && styles.focused]}>
                     <Text style={styles.promptOpenText}>Try a shared activity</Text>
                   </VoicePressable>
                 </View>
@@ -296,9 +296,9 @@ export const App = () => {
                 {sharedPrompts[promptGroupId].options.map((option, index) => {
                   const id = `prompt-choice-${index}`;
                   const chosen = promptAnswer === option;
-                  return <VoicePressable key={option} testID={id} accessibilityRole="button" accessibilityLabel={`${index + 1}. ${option}`} ariaLabel={`${index + 1}. ${option}`} accessibilityState={{selected: chosen}} voiceOrdinal={index + 1} altLabels={[`choose ${option}`]} onFocus={() => setFocusedId(id)} onPress={() => setPromptAnswer(option)} style={[styles.promptChoice, chosen && styles.promptChoiceSelected, focusedId === id && styles.focused]}><Text style={[styles.promptChoiceText, chosen && styles.promptChoiceTextSelected]}>{index + 1}. {option}</Text></VoicePressable>;
+                  return <VoicePressable key={option} testID={id} accessibilityRole="button" accessibilityLabel={`${index + 1}. ${option}`} aria-label={`${index + 1}. ${option}`} accessibilityState={{selected: chosen}} ariaPosInSet={index + 1} altLabels={[`choose ${option}`]} onFocus={() => setFocusedId(id)} onPress={() => setPromptAnswer(option)} style={[styles.promptChoice, chosen && styles.promptChoiceSelected, focusedId === id && styles.focused]}><Text style={[styles.promptChoiceText, chosen && styles.promptChoiceTextSelected]}>{index + 1}. {option}</Text></VoicePressable>;
                 })}
-                <VoicePressable testID="prompt-skip" accessibilityRole="button" accessibilityLabel="Maybe later" ariaLabel="Maybe later" altLabels={['skip this activity']} onFocus={() => setFocusedId('prompt-skip')} onPress={() => { setPromptGroupId(null); setPromptAnswer(null); }} style={[styles.promptSkip, focusedId === 'prompt-skip' && styles.focused]}><Text style={styles.promptSkipText}>Maybe later</Text></VoicePressable>
+                <VoicePressable testID="prompt-skip" accessibilityRole="button" accessibilityLabel="Maybe later" aria-label="Maybe later" altLabels={['skip this activity']} onFocus={() => setFocusedId('prompt-skip')} onPress={() => { setPromptGroupId(null); setPromptAnswer(null); }} style={[styles.promptSkip, focusedId === 'prompt-skip' && styles.focused]}><Text style={styles.promptSkipText}>Maybe later</Text></VoicePressable>
               </TVFocusGuideView>
               <Text style={styles.promptStatus} accessibilityLiveRegion="polite">{promptAnswer ? `Your choice: ${promptAnswer}. You can change it or leave it here.` : 'Choose any answer, or skip. There is no timer.'}</Text>
               <Text style={styles.promptDisclaimer}>Sample activity on this TV. It is not a live group call and your choice is not sent to anyone.</Text>
@@ -310,7 +310,7 @@ export const App = () => {
           <View style={styles.chatHeader}>
             <Text style={styles.sectionTitle}>Chat with Saathi</Text>
             <Text style={styles.chatHint}>Use Alexa voice selection to choose a suggestion, or type an optional message.</Text>
-            <VoicePressable accessibilityRole="button" accessibilityLabel="Start a new chat and clear recent memory" ariaLabel="Start a new chat" altLabels={['clear chat']} onFocus={() => setFocusedId('chat-clear')} onPress={clearChat} style={[styles.chatClear, focusedId === 'chat-clear' && styles.focused]}><Text style={styles.chatClearText}>Start a new chat</Text></VoicePressable>
+            <VoicePressable accessibilityRole="button" accessibilityLabel="Start a new chat and clear recent memory" aria-label="Start a new chat" altLabels={['clear chat']} onFocus={() => setFocusedId('chat-clear')} onPress={clearChat} style={[styles.chatClear, focusedId === 'chat-clear' && styles.focused]}><Text style={styles.chatClearText}>Start a new chat</Text></VoicePressable>
           </View>
           <ScrollView style={styles.chatTranscript} contentContainerStyle={styles.chatTranscriptContent} showsVerticalScrollIndicator>
             {chatMessages.slice(-8).map((item, index) => (
@@ -329,7 +329,7 @@ export const App = () => {
               ['Join Garden Circle', 'Join Garden Circle'],
               ['Review sharing', 'What will you share if I ask Maya for help?'],
             ].map(([label, prompt]) => (
-              <VoicePressable key={label} accessibilityRole="button" accessibilityLabel={label} ariaLabel={label} altLabels={[prompt]} onFocus={() => setFocusedId(`chat-${label}`)} onPress={() => sendChat(prompt)} style={[styles.chatSuggestion, focusedId === `chat-${label}` && styles.focused]}>
+              <VoicePressable key={label} accessibilityRole="button" accessibilityLabel={label} aria-label={label} altLabels={[prompt]} onFocus={() => setFocusedId(`chat-${label}`)} onPress={() => sendChat(prompt)} style={[styles.chatSuggestion, focusedId === `chat-${label}` && styles.focused]}>
                 <Text style={styles.chatSuggestionText}>{label}</Text>
               </VoicePressable>
             ))}
@@ -348,7 +348,7 @@ export const App = () => {
               style={styles.chatInput}
               onFocus={() => setFocusedId('chat-input')}
             />
-            <VoicePressable testID="chat-send" accessibilityRole="button" accessibilityLabel="Send message to Saathi" ariaLabel="Send message" altLabels={['send']} disabled={!chatInput.trim() || chatBusy} onFocus={() => setFocusedId('chat-send')} onPress={() => sendChat()} style={[styles.chatSend, focusedId === 'chat-send' && styles.focused, (!chatInput.trim() || chatBusy) && styles.actionDisabled]}>
+            <VoicePressable testID="chat-send" accessibilityRole="button" accessibilityLabel="Send message to Saathi" aria-label="Send message" altLabels={['send']} disabled={!chatInput.trim() || chatBusy} onFocus={() => setFocusedId('chat-send')} onPress={() => sendChat()} style={[styles.chatSend, focusedId === 'chat-send' && styles.focused, (!chatInput.trim() || chatBusy) && styles.actionDisabled]}>
               <Text style={styles.chatSendText}>{chatBusy ? 'Checking…' : 'Send'}</Text>
             </VoicePressable>
           </View>
