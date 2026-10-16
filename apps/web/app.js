@@ -176,7 +176,7 @@ function showPreview(preview) {
   const helper = document.createElement('p'); helper.className = 'helper'; helper.textContent = 'Maya is a demo contact. Confirming creates a simulated record only; no person or service is contacted.';
   const actions = document.createElement('div'); actions.className = 'button-row';
   const cancel = document.createElement('button'); cancel.className = 'secondary'; cancel.textContent = 'Cancel'; cancel.onclick = () => { state.preview = null; box.replaceChildren(); announce('Cancelled. Nothing was sent.'); traceEvent('User cancelled help preview', { previewId: preview.previewId }, { message: 'No confirmation recorded.' }, 'Consent boundary'); };
-  const confirm = document.createElement('button'); confirm.className = 'primary'; confirm.textContent = 'I reviewed this · Confirm demo request'; confirm.onclick = async () => {
+  const confirm = document.createElement('button'); confirm.id = 'confirmPreviewRequest'; confirm.className = 'primary'; confirm.textContent = 'I reviewed this · Confirm demo request'; confirm.onclick = async () => {
     confirm.disabled = true;
     try {
       await api('/api/help/review', { method: 'POST', body: JSON.stringify({ previewId: preview.previewId }) });
@@ -187,7 +187,18 @@ function showPreview(preview) {
       state.preview = null; box.replaceChildren(); announce(result.message); loadStatuses(); loadTvState();
     } catch (exception) { confirm.disabled = false; announce(exception.message, true); }
   };
-  actions.append(cancel, confirm); card.append(label, heading, dl, helper, actions); box.append(card); confirm.focus();
+  const voiceConfirm = document.createElement('button'); voiceConfirm.className = 'secondary voice-button'; voiceConfirm.textContent = 'Speak confirm or cancel'; voiceConfirm.setAttribute('aria-label', 'Speak to confirm or cancel this preview');
+  const voiceConfirmStatus = document.createElement('span'); voiceConfirmStatus.className = 'voice-status'; voiceConfirmStatus.setAttribute('role', 'status'); voiceConfirmStatus.setAttribute('aria-live', 'polite');
+  voiceConfirm.disabled = !speechRecognitionConstructor();
+  voiceConfirm.title = voiceConfirm.disabled ? 'Voice confirmation is unavailable in this browser.' : 'Say “confirm demo request” or “cancel request”.';
+  voiceConfirm.onclick = () => startSpeechCapture(voiceConfirm, voiceConfirmStatus, (transcript, confidence) => {
+    const command = transcript.toLowerCase().replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim();
+    if ((confidence ?? 1) < 0.7) { voiceConfirmStatus.textContent = `I heard “${transcript}”. Please try again clearly, or use the buttons.`; return; }
+    if (/^(confirm|confirm the|confirm demo|confirm demo request|confirm request)$/.test(command)) confirm.click();
+    else if (/^(cancel|cancel the|cancel request|cancel this request)$/.test(command)) cancel.click();
+    else voiceConfirmStatus.textContent = 'Say “confirm demo request” or “cancel request”. Nothing changed.';
+  });
+  actions.append(cancel, voiceConfirm, confirm); card.append(label, heading, dl, helper, actions, voiceConfirmStatus); box.append(card); confirm.focus();
   traceEvent('Sharing preview presented', { previewId: preview.previewId }, { recipient: preview.recipient, message: preview.message, shares: preview.shares, notShared: preview.notShared, createHelpRequest: 'blocked until user confirms' }, 'Consent boundary');
 }
 $('#preview').addEventListener('click', async () => {
@@ -286,6 +297,32 @@ function showWelcomeMessage() {
   addChatMessage('assistant', 'Hello Asha. What would you like to explore today? I can help you find a welcoming group, learn a task one step at a time, or review a request for practical help.');
 }
 $('#chatForm').addEventListener('submit', event => { event.preventDefault(); const input = $('#chatInput'); const message = input.value; if (!message.trim()) return; input.value = ''; input.style.height = ''; askAgent(message); });
+function speechRecognitionConstructor() { return window.SpeechRecognition || window.webkitSpeechRecognition || null; }
+function startSpeechCapture(button, status, onTranscript) {
+  const Recognition = speechRecognitionConstructor();
+  if (!Recognition) { status.textContent = 'Speech input is unavailable here. You can type or use the existing controls.'; return; }
+  const recognition = new Recognition();
+  recognition.lang = 'en-IN'; recognition.interimResults = false; recognition.maxAlternatives = 1;
+  button.disabled = true; status.textContent = 'Listening once. Speak when ready.';
+  recognition.onresult = event => {
+    const result = event.results?.[0]?.[0]; const transcript = result?.transcript?.trim();
+    if (transcript) onTranscript(transcript, result.confidence);
+    else status.textContent = 'I did not catch that. Try again, or use the buttons.';
+  };
+  recognition.onerror = event => { status.textContent = event.error === 'not-allowed' ? 'Microphone access was not allowed. You can type or use the existing controls.' : 'Speech input did not work just now. Try again or use the existing controls.'; };
+  recognition.onend = () => { button.disabled = false; };
+  try { recognition.start(); } catch { button.disabled = false; status.textContent = 'Speech input could not start. Try again or use the existing controls.'; }
+}
+$('#voiceInput').addEventListener('click', () => startSpeechCapture($('#voiceInput'), $('#voiceStatus'), (transcript, confidence) => {
+  const input = $('#chatInput'); input.value = transcript; input.style.height = 'auto'; input.style.height = `${Math.min(input.scrollHeight, 160)}px`;
+  if ((confidence ?? 1) < 0.45) { $('#voiceStatus').textContent = `I heard “${transcript}”. Review it and press Send when ready.`; input.focus(); return; }
+  input.value = ''; input.style.height = '';
+  $('#voiceStatus').textContent = `Heard: “${transcript}”. Saathi is responding.`; askAgent(transcript);
+}));
+if (!speechRecognitionConstructor()) {
+  $('#voiceInput').disabled = true;
+  $('#voiceStatus').textContent = 'Speech input is not available in this browser. You can type or use the existing controls.';
+}
 $('#chatInput').addEventListener('keydown', event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); $('#chatForm').requestSubmit(); } });
 $('#chatInput').addEventListener('input', event => { event.target.style.height = 'auto'; event.target.style.height = `${Math.min(event.target.scrollHeight, 160)}px`; });
 document.querySelectorAll('.chip[data-chat-prompt]').forEach(chip => chip.addEventListener('click', () => askAgent(chip.dataset.chatPrompt)));
