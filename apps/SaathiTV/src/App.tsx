@@ -192,12 +192,12 @@ export const App = () => {
       </View>
 
       <TVFocusGuideView style={styles.navRow}>
-        {(['explore', 'groups', 'chat'] as const).map((item, index) => {
+        {(['explore', 'groups', 'chat'] as const).map((item) => {
           const id = `tab-${item}`;
           const selected = view === item;
           const label = item === 'explore' ? 'Explore clubs' : item === 'groups' ? 'My gatherings' : 'Chat with Saathi';
           return (
-            <VoicePressable key={item} testID={id} accessibilityRole="tab" accessibilityLabel={label} ariaLabel={label} accessibilityState={{selected}} voiceOrdinal={index + 1} altLabels={[item === 'explore' ? 'find activities' : item === 'groups' ? 'upcoming sessions' : 'ask Saathi']} hasTVPreferredFocus={item === 'explore'} onFocus={() => setFocusedId(id)} onPress={() => setView(item)} style={[styles.navTab, selected && styles.navTabSelected, focusedId === id && styles.focused]}>
+            <VoicePressable key={item} testID={id} accessibilityRole="tab" accessibilityLabel={label} ariaLabel={label} accessibilityState={{selected}} altLabels={[item === 'explore' ? 'find activities' : item === 'groups' ? 'upcoming sessions' : 'ask Saathi']} hasTVPreferredFocus={item === 'explore'} onFocus={() => setFocusedId(id)} onPress={() => setView(item)} style={[styles.navTab, selected && styles.navTabSelected, focusedId === id && styles.focused]}>
               <Text style={[styles.navText, selected && styles.navTextSelected]}>{item === 'explore' ? 'Explore clubs' : item === 'groups' ? `My gatherings${tvState?.joinedSessions.length ? ` (${tvState.joinedSessions.length})` : ''}` : 'Chat with Saathi'}</Text>
             </VoicePressable>
           );
@@ -210,14 +210,14 @@ export const App = () => {
         <>
           <View style={styles.filterSection}>
             <Text style={styles.sectionTitle}>Explore clubs</Text>
-            <Text style={styles.voiceHelp}>Voice on supported Vega devices: use an Alexa Voice Remote and say “select Explore clubs” or “select number one”.</Text>
+            <Text style={styles.voiceHelp}>Voice on supported Vega devices: use an Alexa Voice Remote and say “Alexa, select Explore clubs” or name a visible button, such as “Join Garden Circle”.</Text>
             <Text style={[styles.scrollHint, largeText && {fontSize: 16, lineHeight: 22}]}>{tvState?.recommendationNote ?? 'Use Left and Right to browse clubs · Down to see more'}</Text>
             <TVFocusGuideView style={styles.filterRow}>
-              {filters.map((item, index) => {
+              {filters.map((item) => {
                 const id = `filter-${item}`;
                 const selected = item === filter;
                 return (
-                  <VoicePressable key={item} testID={id} accessibilityRole="button" accessibilityState={{selected}} accessibilityLabel={`${item} activities`} ariaLabel={`${item} activities`} voiceOrdinal={index + 1} onFocus={() => setFocusedId(id)} onPress={() => setFilter(item)} style={[styles.filterChip, selected && styles.filterSelected, focusedId === id && styles.focused]}>
+                  <VoicePressable key={item} testID={id} accessibilityRole="button" accessibilityState={{selected}} accessibilityLabel={`${item} activities`} ariaLabel={`${item} activities`} onFocus={() => setFocusedId(id)} onPress={() => setFilter(item)} style={[styles.filterChip, selected && styles.filterSelected, focusedId === id && styles.focused]}>
                     <Text style={[styles.filterText, selected && styles.filterTextSelected]}>{item}</Text>
                   </VoicePressable>
                 );
@@ -226,7 +226,7 @@ export const App = () => {
           </View>
 
           <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={styles.activityRow}>
-            {visibleActivities.map((activity, index) => {
+            {visibleActivities.map((activity) => {
               const actionId = `activity-action-${activity.id}`;
               const focused = focusedId === actionId;
               return (
@@ -245,7 +245,6 @@ export const App = () => {
                     accessibilityRole="button"
                     accessibilityLabel={`${activity.joined ? 'Leave' : 'Join'} ${activity.title}`}
                     ariaLabel={`${activity.joined ? 'Leave' : 'Join'} ${activity.title}`}
-                    voiceOrdinal={index + 1}
                     altLabels={[`${activity.joined ? 'leave' : 'join'} ${activity.title}`, activity.title]}
                     accessibilityHint={connection !== 'connected' ? 'Connect to Saathi to save this choice' : activity.joined ? 'Removes this club from your upcoming sessions' : 'Adds its recurring sessions to your upcoming gatherings'}
                     accessibilityState={{disabled: connection !== 'connected' || busyId === activity.id}}
@@ -267,7 +266,7 @@ export const App = () => {
             <View style={styles.emptyCard}>
               <Text style={styles.emptyTitle}>Your seat is waiting</Text>
               <Text style={styles.emptyCopy}>Join a recurring club and its next sessions will appear here.</Text>
-              <VoicePressable testID="empty-explore" accessibilityRole="button" onFocus={() => setFocusedId('empty-explore')} onPress={() => setView('explore')} style={[styles.actionButton, focusedId === 'empty-explore' && styles.focused]}>
+              <VoicePressable testID="empty-explore" accessibilityRole="button" accessibilityLabel="Explore clubs" ariaLabel="Explore clubs" altLabels={['find activities']} onFocus={() => setFocusedId('empty-explore')} onPress={() => setView('explore')} style={[styles.actionButton, focusedId === 'empty-explore' && styles.focused]}>
                 <Text style={styles.actionText}>Explore clubs</Text>
               </VoicePressable>
             </View>
@@ -282,7 +281,7 @@ export const App = () => {
                   <Text style={styles.accessText}>{session.recurrence}</Text>
                   {session.participationMode ? <Text style={styles.accessText}>Participation choice: {session.participationMode}</Text> : null}
                   <Text style={styles.sessionNote}>Come as you are. You can listen, take part, or simply observe.</Text>
-                  <VoicePressable testID={`try-activity-${session.id}`} accessibilityRole="button" accessibilityLabel={`Try a sample activity for ${session.title}`} accessibilityHint="Opens one optional activity you can answer at your own pace" onFocus={() => setFocusedId(`try-activity-${session.id}`)} onPress={() => { setPromptGroupId(session.groupId); setPromptAnswer(null); }} style={[styles.promptOpen, focusedId === `try-activity-${session.id}` && styles.focused]}>
+                  <VoicePressable testID={`try-activity-${session.id}`} accessibilityRole="button" accessibilityLabel={`Try a sample activity for ${session.title}`} ariaLabel={`Try a sample activity for ${session.title}`} altLabels={['try activity']} accessibilityHint="Opens one optional activity you can answer at your own pace" onFocus={() => setFocusedId(`try-activity-${session.id}`)} onPress={() => { setPromptGroupId(session.groupId); setPromptAnswer(null); }} style={[styles.promptOpen, focusedId === `try-activity-${session.id}` && styles.focused]}>
                     <Text style={styles.promptOpenText}>Try a shared activity</Text>
                   </VoicePressable>
                 </View>
@@ -297,9 +296,9 @@ export const App = () => {
                 {sharedPrompts[promptGroupId].options.map((option, index) => {
                   const id = `prompt-choice-${index}`;
                   const chosen = promptAnswer === option;
-                  return <VoicePressable key={option} testID={id} accessibilityRole="button" accessibilityLabel={option} ariaLabel={option} accessibilityState={{selected: chosen}} voiceOrdinal={index + 1} altLabels={[`choose ${option}`]} onFocus={() => setFocusedId(id)} onPress={() => setPromptAnswer(option)} style={[styles.promptChoice, chosen && styles.promptChoiceSelected, focusedId === id && styles.focused]}><Text style={[styles.promptChoiceText, chosen && styles.promptChoiceTextSelected]}>{option}</Text></VoicePressable>;
+                  return <VoicePressable key={option} testID={id} accessibilityRole="button" accessibilityLabel={`${index + 1}. ${option}`} ariaLabel={`${index + 1}. ${option}`} accessibilityState={{selected: chosen}} voiceOrdinal={index + 1} altLabels={[`choose ${option}`]} onFocus={() => setFocusedId(id)} onPress={() => setPromptAnswer(option)} style={[styles.promptChoice, chosen && styles.promptChoiceSelected, focusedId === id && styles.focused]}><Text style={[styles.promptChoiceText, chosen && styles.promptChoiceTextSelected]}>{index + 1}. {option}</Text></VoicePressable>;
                 })}
-                <VoicePressable testID="prompt-skip" accessibilityRole="button" accessibilityLabel="Skip this activity" ariaLabel="Maybe later" onFocus={() => setFocusedId('prompt-skip')} onPress={() => { setPromptGroupId(null); setPromptAnswer(null); }} style={[styles.promptSkip, focusedId === 'prompt-skip' && styles.focused]}><Text style={styles.promptSkipText}>Maybe later</Text></VoicePressable>
+                <VoicePressable testID="prompt-skip" accessibilityRole="button" accessibilityLabel="Maybe later" ariaLabel="Maybe later" altLabels={['skip this activity']} onFocus={() => setFocusedId('prompt-skip')} onPress={() => { setPromptGroupId(null); setPromptAnswer(null); }} style={[styles.promptSkip, focusedId === 'prompt-skip' && styles.focused]}><Text style={styles.promptSkipText}>Maybe later</Text></VoicePressable>
               </TVFocusGuideView>
               <Text style={styles.promptStatus} accessibilityLiveRegion="polite">{promptAnswer ? `Your choice: ${promptAnswer}. You can change it or leave it here.` : 'Choose any answer, or skip. There is no timer.'}</Text>
               <Text style={styles.promptDisclaimer}>Sample activity on this TV. It is not a live group call and your choice is not sent to anyone.</Text>
@@ -310,8 +309,8 @@ export const App = () => {
         <View style={styles.chatPanel}>
           <View style={styles.chatHeader}>
             <Text style={styles.sectionTitle}>Chat with Saathi</Text>
-            <Text style={styles.chatHint}>Use the remote to choose a suggestion or type a message.</Text>
-            <VoicePressable accessibilityRole="button" accessibilityLabel="Start a new chat and clear recent memory" onFocus={() => setFocusedId('chat-clear')} onPress={clearChat} style={[styles.chatClear, focusedId === 'chat-clear' && styles.focused]}><Text style={styles.chatClearText}>Start a new chat</Text></VoicePressable>
+            <Text style={styles.chatHint}>Use Alexa voice selection to choose a suggestion, or type an optional message.</Text>
+            <VoicePressable accessibilityRole="button" accessibilityLabel="Start a new chat and clear recent memory" ariaLabel="Start a new chat" altLabels={['clear chat']} onFocus={() => setFocusedId('chat-clear')} onPress={clearChat} style={[styles.chatClear, focusedId === 'chat-clear' && styles.focused]}><Text style={styles.chatClearText}>Start a new chat</Text></VoicePressable>
           </View>
           <ScrollView style={styles.chatTranscript} contentContainerStyle={styles.chatTranscriptContent} showsVerticalScrollIndicator>
             {chatMessages.slice(-8).map((item, index) => (
@@ -324,10 +323,13 @@ export const App = () => {
           <TVFocusGuideView style={styles.chatSuggestions}>
             {[
               ['Ask about gardening', 'Find a gardening group with captions'],
+              ['Find untimed chess', 'Find an untimed chess group with text moves'],
               ['Show a small guide', 'Show me a simple herb pot guide'],
+              ['My upcoming sessions', 'Show my upcoming sessions'],
+              ['Join Garden Circle', 'Join Garden Circle'],
               ['Review sharing', 'What will you share if I ask Maya for help?'],
-            ].map(([label, prompt], index) => (
-              <VoicePressable key={label} accessibilityRole="button" accessibilityLabel={label} ariaLabel={label} voiceOrdinal={index + 1} altLabels={[prompt]} onFocus={() => setFocusedId(`chat-${label}`)} onPress={() => sendChat(prompt)} style={[styles.chatSuggestion, focusedId === `chat-${label}` && styles.focused]}>
+            ].map(([label, prompt]) => (
+              <VoicePressable key={label} accessibilityRole="button" accessibilityLabel={label} ariaLabel={label} altLabels={[prompt]} onFocus={() => setFocusedId(`chat-${label}`)} onPress={() => sendChat(prompt)} style={[styles.chatSuggestion, focusedId === `chat-${label}` && styles.focused]}>
                 <Text style={styles.chatSuggestionText}>{label}</Text>
               </VoicePressable>
             ))}
@@ -335,8 +337,8 @@ export const App = () => {
           <View style={styles.chatComposer}>
             <TextInput
               testID="chat-input"
-              accessibilityLabel="Message Saathi"
-              accessibilityHint="Use the TV keyboard to type a message, then move to Send. Suggested questions are available above."
+              accessibilityLabel="Optional message to Saathi"
+              accessibilityHint="Typing is optional. Choose a named suggestion above for hands-free use."
               value={chatInput}
               onChangeText={setChatInput}
               placeholder="Ask Saathi…"
@@ -346,7 +348,7 @@ export const App = () => {
               style={styles.chatInput}
               onFocus={() => setFocusedId('chat-input')}
             />
-            <VoicePressable testID="chat-send" accessibilityRole="button" accessibilityLabel="Send message to Saathi" disabled={!chatInput.trim() || chatBusy} onFocus={() => setFocusedId('chat-send')} onPress={() => sendChat()} style={[styles.chatSend, focusedId === 'chat-send' && styles.focused, (!chatInput.trim() || chatBusy) && styles.actionDisabled]}>
+            <VoicePressable testID="chat-send" accessibilityRole="button" accessibilityLabel="Send message to Saathi" ariaLabel="Send message" altLabels={['send']} disabled={!chatInput.trim() || chatBusy} onFocus={() => setFocusedId('chat-send')} onPress={() => sendChat()} style={[styles.chatSend, focusedId === 'chat-send' && styles.focused, (!chatInput.trim() || chatBusy) && styles.actionDisabled]}>
               <Text style={styles.chatSendText}>{chatBusy ? 'Checking…' : 'Send'}</Text>
             </VoicePressable>
           </View>
