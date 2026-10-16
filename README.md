@@ -13,7 +13,7 @@ This repository contains a no-extra-dependency Node.js demo server and web app, 
 - Join or leave a club and see its upcoming sessions in the web experience and Vega app through one local demo backend.
 - On the Vega TV app, open an optional one-step sample prompt for a club and choose a response with the remote. It is a local sample, not a live group call, and the response is not sent to anyone.
 - In supported browsers, use **Speak** for one-shot chat input and voice confirmation while a help preview is open. The browser may use its own speech service.
-- Ask Saathi about clubs or three curated learning guides. Conversation context is held in server memory for up to eight turns and 30 minutes of inactivity.
+- Use Task Guides on the Vega app for three curated tasks in quick overview or one-step-at-a-time mode, with repeat, previous, and next controls. Ask Saathi about clubs or guides in chat. Conversation context is held in server memory for up to eight turns and 30 minutes of inactivity.
 - Vega on-screen voice navigation is enabled for controls such as “Explore clubs,” “My gatherings,” and “Join Garden Circle.” Alexa handles speech; the app does not capture microphone audio. The Virtual Device supports UI/remote testing but does not use its microphone, so spoken selection needs a compatible physical device and Alexa Voice Remote.
 - Change interests, caption preference, participation style, guide detail, and text size in **Privacy**. Joining records a participation choice. Preferences are shared with the web TV preview and Vega app while the server is running.
 - Review a practical-help message before confirming a simulated request. No contact is actually sent.

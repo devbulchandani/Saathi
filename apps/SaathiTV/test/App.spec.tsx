@@ -30,6 +30,38 @@ describe('App', () => {
     expect(screen.getByTestId('empty-explore')).toBeTruthy();
   });
 
+  it('offers adjustable task guidance with repeat and step progress controls', async () => {
+    const guide = (step: number, detail: 'stepwise' | 'brief' = 'stepwise') => ({
+      guideId: 'herb-pot', title: 'A small herb pot', detail,
+      steps: [detail === 'brief' ? 'Choose a pot. Add soil. Plant and water.' : `Step ${step + 1} text.`],
+      currentStep: step, currentStepNumber: step + 1, totalSteps: 3, note: 'Take your time.',
+    });
+    const state = {
+      user: {name: 'Asha', preferences: {interests: ['gardening'], captions: true, detail: 'stepwise'}},
+      nextSession: null, joinedSessions: [], allActivities: [], activeGuide: guide(0), latestHelpStatus: null,
+    };
+    const fetchMock = jest.fn()
+      .mockResolvedValueOnce({ok: true, json: async () => state})
+      .mockResolvedValueOnce({ok: true, json: async () => guide(0)})
+      .mockResolvedValueOnce({ok: true, json: async () => guide(1)})
+      .mockResolvedValueOnce({ok: true, json: async () => guide(1)})
+      .mockResolvedValueOnce({ok: true, json: async () => guide(1, 'brief')})
+      .mockResolvedValue({ok: true, json: async () => state});
+    global.fetch = fetchMock as typeof fetch;
+
+    const screen = render(<App />);
+    await waitFor(() => expect(screen.getByText('Synced · caption preference on')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('tab-guidance'));
+    await waitFor(() => expect(screen.getByText('Step 1 text.')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('guide-next'));
+    await waitFor(() => expect(screen.getByText('Step 2 text.')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('guide-repeat'));
+    expect(screen.getByText('Repeating step 2: Step 2 text.')).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledWith('http://10.0.2.2:4173/api/guidance/progress', expect.objectContaining({method: 'POST'}));
+    fireEvent.press(screen.getByTestId('guide-detail-brief'));
+    await waitFor(() => expect(screen.getByText('Choose a pot. Add soil. Plant and water.')).toBeTruthy());
+  });
+
   it('shows the shared Saathi server state and sends a join action to its API', async () => {
     const state = {
       user: {name: 'Asha', preferences: {interests: ['gardening'], captions: true}},
@@ -46,12 +78,12 @@ describe('App', () => {
     global.fetch = fetchMock as typeof fetch;
 
     const screen = render(<App />);
-    await waitFor(() => expect(screen.getByText('Synced with Saathi demo')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Synced · caption preference on')).toBeTruthy());
     fireEvent.press(screen.getByTestId('activity-action-garden-circle'));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
       'http://10.0.2.2:4173/api/activities/garden-circle/join',
-      {method: 'POST'},
+      expect.objectContaining({method: 'POST', body: '{}'}),
     ));
   });
 });

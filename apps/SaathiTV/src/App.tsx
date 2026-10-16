@@ -30,17 +30,23 @@ type Activity = {
 };
 
 type Session = {id: string; groupId: string; title: string; topic: string; startsAt: string; recurrence: string; access: string[]; participationMode?: string | null};
+type Guide = {guideId: 'herb-pot' | 'masala-chai' | 'balcony-compost'; title: string; detail: 'stepwise' | 'brief'; steps: string[]; currentStep: number; currentStepNumber: number; totalSteps: number; note: string};
 type TvState = {
   user: {name: string; preferences: {interests: string[]; captions: boolean; textSize: 'large' | 'default'; participationMode?: string | null}};
   nextSession: {title: string; recurrence: string; startsAt: string} | null;
   joinedSessions: Session[];
   allActivities: Activity[];
   recommendationNote?: string;
-  activeGuide: {title: string; currentStepNumber: number; totalSteps: number} | null;
+  activeGuide: Guide | null;
   latestHelpStatus: {status: string} | null;
 };
 
 const filters = ['All', 'Gardening', 'Games', 'Music', 'Art'];
+const guideChoices: {id: Guide['guideId']; title: string}[] = [
+  {id: 'herb-pot', title: 'Herb pot'},
+  {id: 'masala-chai', title: 'Masala chai'},
+  {id: 'balcony-compost', title: 'Balcony compost'},
+];
 const VoicePressable = Pressable as React.ComponentType<React.ComponentProps<typeof Pressable> & {'aria-label'?: string; ariaPosInSet?: number; altLabels?: string[]}>;
 const sharedPrompts: Record<string, {question: string; options: string[]}> = {
   'garden-circle': {question: 'Which herb would you enjoy growing?', options: ['Mint for tea', 'Basil for cooking', 'Coriander for a fresh garnish']},
@@ -67,7 +73,10 @@ export const App = () => {
   const [connection, setConnection] = useState<'loading' | 'connected' | 'offline'>('loading');
   const largeText = tvState?.user.preferences.textSize === 'large';
   const [notice, setNotice] = useState('');
-  const [view, setView] = useState<'explore' | 'groups' | 'chat'>('explore');
+  const [view, setView] = useState<'explore' | 'groups' | 'chat' | 'guidance'>('explore');
+  const [activeGuide, setActiveGuide] = useState<Guide | null>(null);
+  const [guideBusy, setGuideBusy] = useState(false);
+  const [guideAnnouncement, setGuideAnnouncement] = useState('');
   const [promptGroupId, setPromptGroupId] = useState<string | null>(null);
   const [promptAnswer, setPromptAnswer] = useState<string | null>(null);
   const [chatInput, setChatInput] = useState('');
@@ -84,6 +93,7 @@ export const App = () => {
       const state = (await response.json()) as TvState;
       setTvState(state);
       setActivities(state.allActivities);
+      if (state.activeGuide) setActiveGuide(state.activeGuide);
       setConnection('connected');
       setNotice('');
     } catch {
@@ -91,6 +101,41 @@ export const App = () => {
       setNotice('Saathi is offline. Some information may be out of date.');
     }
   }, []);
+
+  const loadGuide = async (guideId: Guide['guideId'], detail: Guide['detail']) => {
+    setGuideBusy(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/guidance?guide=${guideId}&detail=${detail}`);
+      const guide = await response.json();
+      if (!response.ok) throw new Error(guide.error?.message ?? 'Could not load this guide.');
+      setActiveGuide(guide as Guide);
+      setNotice('');
+    } catch {
+      setNotice('The task guide is unavailable right now. Check the connection and try again.');
+    } finally {
+      setGuideBusy(false);
+    }
+  };
+
+  const changeGuideStep = async (step: number) => {
+    if (!activeGuide || step < 0 || step >= activeGuide.totalSteps || guideBusy) return;
+    setGuideBusy(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/guidance/progress`, {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({guideId: activeGuide.guideId, currentStep: step, detail: activeGuide.detail}),
+      });
+      const guide = await response.json();
+      if (!response.ok) throw new Error(guide.error?.message ?? 'Could not update guide progress.');
+      setActiveGuide(guide as Guide);
+      setNotice('');
+    } catch {
+      setNotice('The step could not be changed. Your current step is still shown.');
+    } finally {
+      setGuideBusy(false);
+    }
+  };
 
   useEffect(() => {
     refresh();
@@ -136,6 +181,12 @@ export const App = () => {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error?.message ?? 'Saathi could not answer just now.');
       const preview = result.uiAction?.previewData;
+      const guidanceCall = [...(result.toolCalls ?? [])].reverse().find((call: {name: string}) => call.name === 'get_task_guidance');
+      if (guidanceCall?.result) {
+        const guide = guidanceCall.result as Guide;
+        setActiveGuide(guide);
+        setView('guidance');
+      }
       const previewText = preview
         ? `\n\nReview before confirming\nTo: ${preview.recipient}\nMessage: ${preview.message}\nShared: ${preview.shares.join(', ')}\nNot shared: ${preview.notShared.join(', ')}\n\nThis is a preview only. Nothing was sent.`
         : '';
@@ -192,13 +243,13 @@ export const App = () => {
       </View>
 
       <TVFocusGuideView style={styles.navRow}>
-        {(['explore', 'groups', 'chat'] as const).map((item) => {
+        {(['explore', 'groups', 'chat', 'guidance'] as const).map((item) => {
           const id = `tab-${item}`;
           const selected = view === item;
-          const label = item === 'explore' ? 'Explore clubs' : item === 'groups' ? 'My gatherings' : 'Chat with Saathi';
+          const label = item === 'explore' ? 'Explore clubs' : item === 'groups' ? 'My gatherings' : item === 'chat' ? 'Chat with Saathi' : 'Task guides';
           return (
-            <VoicePressable key={item} testID={id} accessibilityRole="tab" accessibilityLabel={label} aria-label={label} accessibilityState={{selected}} altLabels={[item === 'explore' ? 'find activities' : item === 'groups' ? 'upcoming sessions' : 'ask Saathi']} hasTVPreferredFocus={item === 'explore'} onFocus={() => setFocusedId(id)} onPress={() => setView(item)} style={[styles.navTab, selected && styles.navTabSelected, focusedId === id && styles.focused]}>
-              <Text style={[styles.navText, selected && styles.navTextSelected]}>{item === 'explore' ? 'Explore clubs' : item === 'groups' ? `My gatherings${tvState?.joinedSessions.length ? ` (${tvState.joinedSessions.length})` : ''}` : 'Chat with Saathi'}</Text>
+            <VoicePressable key={item} testID={id} accessibilityRole="tab" accessibilityLabel={label} aria-label={label} accessibilityState={{selected}} altLabels={[item === 'explore' ? 'find activities' : item === 'groups' ? 'upcoming sessions' : item === 'chat' ? 'ask Saathi' : 'task instructions']} hasTVPreferredFocus={item === 'explore'} onFocus={() => setFocusedId(id)} onPress={() => { setView(item); if (item === 'guidance') loadGuide(activeGuide?.guideId ?? 'herb-pot', activeGuide?.detail ?? tvState?.user.preferences.detail ?? 'stepwise'); }} style={[styles.navTab, selected && styles.navTabSelected, focusedId === id && styles.focused]}>
+              <Text style={[styles.navText, selected && styles.navTextSelected]}>{item === 'explore' ? 'Explore clubs' : item === 'groups' ? `My gatherings${tvState?.joinedSessions.length ? ` (${tvState.joinedSessions.length})` : ''}` : item === 'chat' ? 'Chat with Saathi' : 'Task guides'}</Text>
             </VoicePressable>
           );
         })}
@@ -305,7 +356,7 @@ export const App = () => {
             </View>
           ) : null}
         </View>
-      ) : (
+      ) : view === 'chat' ? (
         <View style={styles.chatPanel}>
           <View style={styles.chatHeader}>
             <Text style={styles.sectionTitle}>Chat with Saathi</Text>
@@ -353,6 +404,42 @@ export const App = () => {
             </VoicePressable>
           </View>
           <Text style={styles.chatPrivacy}>Remembers up to 8 recent turns for 30 minutes idle. Start a new chat to clear them. Recent context may be sent to the configured AI provider. Help remains preview-only.</Text>
+        </View>
+      ) : (
+        <View style={styles.guidePanel}>
+          <Text style={styles.sectionTitle}>A small task, at your pace</Text>
+          <Text style={styles.chatHint}>Choose a guide. Nothing is timed, and you can repeat or change the detail whenever you like.</Text>
+          <TVFocusGuideView style={styles.guideChoiceRow}>
+            {guideChoices.map((guide) => (
+              <VoicePressable key={guide.id} testID={`guide-${guide.id}`} accessibilityRole="button" accessibilityLabel={`${guide.title} guide`} aria-label={`${guide.title} guide`} accessibilityState={{selected: activeGuide?.guideId === guide.id}} onFocus={() => setFocusedId(`guide-${guide.id}`)} onPress={() => loadGuide(guide.id, activeGuide?.detail ?? tvState?.user.preferences.detail ?? 'stepwise')} style={[styles.guideChoice, activeGuide?.guideId === guide.id && styles.guideChoiceSelected, focusedId === `guide-${guide.id}` && styles.focused]}>
+                <Text style={[styles.guideChoiceText, activeGuide?.guideId === guide.id && styles.guideChoiceTextSelected]}>{guide.title}</Text>
+              </VoicePressable>
+            ))}
+          </TVFocusGuideView>
+          {activeGuide ? (
+            <View style={styles.guideCard} accessibilityLiveRegion="polite">
+              <Text style={styles.activityCategory}>YOUR GUIDE</Text>
+              <Text style={styles.activityTitle}>{activeGuide.title}</Text>
+              <TVFocusGuideView style={styles.guideModeRow}>
+                {(['stepwise', 'brief'] as const).map((detail) => (
+                  <VoicePressable key={detail} testID={`guide-detail-${detail}`} accessibilityRole="button" accessibilityLabel={detail === 'stepwise' ? 'One step at a time' : 'Quick overview'} aria-label={detail === 'stepwise' ? 'One step at a time' : 'Quick overview'} accessibilityState={{selected: activeGuide.detail === detail}} onFocus={() => setFocusedId(`guide-detail-${detail}`)} onPress={() => loadGuide(activeGuide.guideId, detail)} style={[styles.guideMode, activeGuide.detail === detail && styles.guideModeSelected, focusedId === `guide-detail-${detail}` && styles.focused]}>
+                    <Text style={[styles.guideModeText, activeGuide.detail === detail && styles.guideModeTextSelected]}>{detail === 'stepwise' ? 'One step at a time' : 'Quick overview'}</Text>
+                  </VoicePressable>
+                ))}
+              </TVFocusGuideView>
+              <Text style={styles.guideStepLabel}>{activeGuide.detail === 'stepwise' ? `Step ${activeGuide.currentStepNumber} of ${activeGuide.totalSteps}` : 'Quick overview'}</Text>
+              <Text style={[styles.guideStepText, largeText && {fontSize: 24, lineHeight: 34}]} accessibilityLiveRegion="polite">{guideBusy ? 'Updating your guide…' : activeGuide.steps.join(' ')}</Text>
+              <Text style={styles.guideNote}>{activeGuide.note}</Text>
+              {guideAnnouncement ? <Text style={styles.guideAnnouncement} accessibilityLiveRegion="polite">{guideAnnouncement}</Text> : null}
+              {activeGuide.detail === 'stepwise' ? (
+                <TVFocusGuideView style={styles.guideActions}>
+                  <VoicePressable testID="guide-previous" accessibilityRole="button" accessibilityLabel="Previous step" aria-label="Previous step" disabled={activeGuide.currentStep === 0 || guideBusy} onFocus={() => setFocusedId('guide-previous')} onPress={() => changeGuideStep(activeGuide.currentStep - 1)} style={[styles.guideAction, focusedId === 'guide-previous' && styles.focused, (activeGuide.currentStep === 0 || guideBusy) && styles.actionDisabled]}><Text style={styles.guideActionText}>Previous step</Text></VoicePressable>
+                  <VoicePressable testID="guide-repeat" accessibilityRole="button" accessibilityLabel="Repeat current step" aria-label="Repeat current step" disabled={guideBusy} onFocus={() => setFocusedId('guide-repeat')} onPress={() => { setGuideAnnouncement(`Repeating step ${activeGuide.currentStepNumber}: ${activeGuide.steps.join(' ')}`); loadGuide(activeGuide.guideId, 'stepwise'); }} style={[styles.guideAction, focusedId === 'guide-repeat' && styles.focused, guideBusy && styles.actionDisabled]}><Text style={styles.guideActionText}>Repeat this step</Text></VoicePressable>
+                  <VoicePressable testID="guide-next" accessibilityRole="button" accessibilityLabel="Next step" aria-label="Next step" disabled={activeGuide.currentStep >= activeGuide.totalSteps - 1 || guideBusy} onFocus={() => setFocusedId('guide-next')} onPress={() => changeGuideStep(activeGuide.currentStep + 1)} style={[styles.guideAction, focusedId === 'guide-next' && styles.focused, (activeGuide.currentStep >= activeGuide.totalSteps - 1 || guideBusy) && styles.actionDisabled]}><Text style={styles.guideActionText}>Next step</Text></VoicePressable>
+                </TVFocusGuideView>
+              ) : null}
+            </View>
+          ) : <Text style={styles.guideNote}>Select a guide to begin.</Text>}
         </View>
       )}
       </ScrollView>
@@ -417,6 +504,25 @@ const styles = StyleSheet.create({
   promptSkipText: {fontSize: 16, color: '#29464D', fontWeight: '600'},
   promptStatus: {fontSize: 16, lineHeight: 23, color: '#18333F', marginTop: 12},
   promptDisclaimer: {fontSize: 13, lineHeight: 19, color: '#53696B', marginTop: 7},
+  guidePanel: {flex: 1, minHeight: 0, backgroundColor: '#173640', borderRadius: 18, padding: 20},
+  guideChoiceRow: {flexDirection: 'row', gap: 12, marginBottom: 15},
+  guideChoice: {minWidth: 190, paddingHorizontal: 17, paddingVertical: 13, borderWidth: 1, borderColor: '#668087', borderRadius: 10, backgroundColor: '#274A54'},
+  guideChoiceSelected: {backgroundColor: '#D4E7DE', borderColor: '#D4E7DE'},
+  guideChoiceText: {fontSize: 17, color: '#F4F1E8', fontWeight: '700'},
+  guideChoiceTextSelected: {color: '#102A35'},
+  guideCard: {flex: 1, minHeight: 235, padding: 20, borderRadius: 14, backgroundColor: '#F4F1E8'},
+  guideModeRow: {flexDirection: 'row', gap: 10, marginTop: 6, marginBottom: 12},
+  guideMode: {paddingHorizontal: 16, paddingVertical: 10, borderRadius: 9, borderWidth: 1, borderColor: '#849A90', backgroundColor: '#FFFFFF'},
+  guideModeSelected: {backgroundColor: '#D4E7DE', borderColor: '#39715B'},
+  guideModeText: {fontSize: 16, color: '#29464D', fontWeight: '600'},
+  guideModeTextSelected: {color: '#123F34', fontWeight: '800'},
+  guideStepLabel: {fontSize: 15, color: '#3C7568', fontWeight: '800', marginTop: 4},
+  guideStepText: {fontSize: 21, lineHeight: 30, color: '#173640', marginTop: 6},
+  guideNote: {fontSize: 14, lineHeight: 20, color: '#53696B', marginTop: 10},
+  guideAnnouncement: {fontSize: 15, lineHeight: 21, color: '#29464D', fontWeight: '700', marginTop: 8},
+  guideActions: {flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 16},
+  guideAction: {minWidth: 150, minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, borderRadius: 9, backgroundColor: '#B7D7C9'},
+  guideActionText: {fontSize: 16, color: '#102A35', fontWeight: '800'},
   sectionTitle: {fontSize: 22, color: '#FFFDF7', fontWeight: '700', marginBottom: 9},
   filterRow: {flexDirection: 'row', gap: 11},
   filterChip: {paddingHorizontal: 18, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#668087', backgroundColor: '#173640'},
